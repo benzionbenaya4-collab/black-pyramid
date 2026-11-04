@@ -39,6 +39,7 @@
       </div>
     </div>
     <button id="btn-journal" type="button">📜 יומן (J)</button>
+    <button id="btn-design" type="button">🎨 עיצוב הדמות</button>
     <div id="dialog" class="hidden">
       <div id="dlg-name"></div>
       <div id="dlg-text"></div>
@@ -67,6 +68,7 @@
       <div class="buttons">
         <button id="btn-continue" class="hidden">המשך משחק</button>
         <button id="btn-new">משחק חדש</button>
+        <button id="btn-design-title" class="ghost" type="button">🎨 עיצוב הדמות</button>
       </div>
       <p id="endings-found" class="note"></p>
     </div>
@@ -78,6 +80,31 @@
       <h2 id="choice-title"></h2>
       <p id="choice-text"></p>
       <div id="choice-buttons" class="buttons col"></div>
+    </div>
+  </div>
+
+  <!-- Character designer -->
+  <div id="editor" class="screen hidden">
+    <div class="panel editor">
+      <h2>עיצוב הדמות</h2>
+      <div class="ed-layout">
+        <div class="ed-preview"><canvas id="ed-canvas"></canvas><div class="note">גרור כדי לסובב</div></div>
+        <div class="ed-controls">
+          <h3>ערכות צבעים מוכנות</h3><div id="ed-presets" class="ed-presets"></div>
+          <h3>צבעים</h3><div id="ed-colors" class="ed-grid"></div>
+          <h3>גדלים</h3><div id="ed-sizes"></div>
+          <h3>חלקים</h3><div id="ed-parts" class="ed-grid"></div>
+        </div>
+      </div>
+      <div id="ed-code-box" class="hidden"><textarea id="ed-code" rows="3" dir="ltr"></textarea><div class="buttons"><button id="ed-load" type="button" class="ghost">טען קוד</button></div></div>
+      <p id="ed-msg" class="note"></p>
+      <div class="buttons">
+        <button id="ed-save" type="button">שמור והחל</button>
+        <button id="ed-reset" type="button" class="ghost">איפוס</button>
+        <button id="ed-copy" type="button" class="ghost">העתק קוד עיצוב</button>
+        <button id="ed-paste" type="button" class="ghost">הדבק קוד עיצוב</button>
+        <button id="ed-cancel" type="button" class="ghost">ביטול</button>
+      </div>
     </div>
   </div>
 

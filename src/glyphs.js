@@ -67,6 +67,7 @@ export function makeGlyphMaterial(o) {
   const f = (n) => Number(n).toFixed(4);
   const slant = Math.sqrt(1 + ((P.half - P.top) / P.H) ** 2);
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.32, metalness: 0.65, emissive: 0xffb02e, flatShading: true });
+  mat.userData.keepFlat = true;
   const key = 'glyph-' + JSON.stringify(P);
   mat.customProgramCacheKey = () => key;
   mat.onBeforeCompile = (shader) => {

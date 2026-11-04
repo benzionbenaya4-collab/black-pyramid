@@ -114,6 +114,32 @@ button.ghost { background: transparent; color: #f6e7c8; border-color: #8a6a3a; }
   #dlg-text { font-size: 16px; }
 }
 
+/* character designer */
+#btn-design { position: absolute; top: 270px; left: 14px; pointer-events: auto; font-size: 14px; padding: 6px 12px; }
+.panel.editor { max-width: 980px; width: calc(100vw - 32px); text-align: right; }
+.ed-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 18px; }
+.ed-preview { display: flex; flex-direction: column; gap: 4px; }
+#ed-canvas { width: 100%; height: 420px; border-radius: 10px; background: linear-gradient(#f5d3a0, #e3a866); touch-action: none; cursor: grab; }
+.ed-controls { max-height: 440px; overflow-y: auto; padding-left: 6px; }
+.ed-controls h3 { color: #ffcf5c; font-size: 15px; margin: 10px 0 6px; }
+.ed-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
+.ed-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
+.ed-row input[type=color] { width: 42px; height: 28px; border: 1px solid #8a6a3a; border-radius: 6px; background: none; padding: 0; cursor: pointer; }
+.ed-row input[type=range] { flex: 1; accent-color: #f6c23e; }
+.ed-row output { min-width: 44px; font-variant-numeric: tabular-nums; font-size: 13px; opacity: .85; }
+.ed-check { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.ed-check input { accent-color: #f6c23e; width: 18px; height: 18px; }
+.ed-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.ed-presets button { font-size: 13px; padding: 5px 10px; display: flex; align-items: center; gap: 3px; }
+.ed-presets i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #0006; }
+#ed-code { width: 100%; font: 12px monospace; background: #120a03; color: #ffe7b0; border: 1px solid #8a6a3a; border-radius: 6px; padding: 6px; }
+@media (max-width: 700px) {
+  .ed-layout { grid-template-columns: 1fr; }
+  #ed-canvas { height: 260px; }
+  .ed-controls { max-height: none; }
+  #btn-design { top: auto; bottom: 245px; left: 8px; }
+}
+
 </style>
   <script type="importmap">
   {
@@ -149,6 +175,7 @@ button.ghost { background: transparent; color: #f6e7c8; border-color: #8a6a3a; }
       </div>
     </div>
     <button id="btn-journal" type="button">📜 יומן (J)</button>
+    <button id="btn-design" type="button">🎨 עיצוב הדמות</button>
     <div id="dialog" class="hidden">
       <div id="dlg-name"></div>
       <div id="dlg-text"></div>
@@ -177,6 +204,7 @@ button.ghost { background: transparent; color: #f6e7c8; border-color: #8a6a3a; }
       <div class="buttons">
         <button id="btn-continue" class="hidden">המשך משחק</button>
         <button id="btn-new">משחק חדש</button>
+        <button id="btn-design-title" class="ghost" type="button">🎨 עיצוב הדמות</button>
       </div>
       <p id="endings-found" class="note"></p>
     </div>
@@ -188,6 +216,31 @@ button.ghost { background: transparent; color: #f6e7c8; border-color: #8a6a3a; }
       <h2 id="choice-title"></h2>
       <p id="choice-text"></p>
       <div id="choice-buttons" class="buttons col"></div>
+    </div>
+  </div>
+
+  <!-- Character designer -->
+  <div id="editor" class="screen hidden">
+    <div class="panel editor">
+      <h2>עיצוב הדמות</h2>
+      <div class="ed-layout">
+        <div class="ed-preview"><canvas id="ed-canvas"></canvas><div class="note">גרור כדי לסובב</div></div>
+        <div class="ed-controls">
+          <h3>ערכות צבעים מוכנות</h3><div id="ed-presets" class="ed-presets"></div>
+          <h3>צבעים</h3><div id="ed-colors" class="ed-grid"></div>
+          <h3>גדלים</h3><div id="ed-sizes"></div>
+          <h3>חלקים</h3><div id="ed-parts" class="ed-grid"></div>
+        </div>
+      </div>
+      <div id="ed-code-box" class="hidden"><textarea id="ed-code" rows="3" dir="ltr"></textarea><div class="buttons"><button id="ed-load" type="button" class="ghost">טען קוד</button></div></div>
+      <p id="ed-msg" class="note"></p>
+      <div class="buttons">
+        <button id="ed-save" type="button">שמור והחל</button>
+        <button id="ed-reset" type="button" class="ghost">איפוס</button>
+        <button id="ed-copy" type="button" class="ghost">העתק קוד עיצוב</button>
+        <button id="ed-paste" type="button" class="ghost">הדבק קוד עיצוב</button>
+        <button id="ed-cancel" type="button" class="ghost">ביטול</button>
+      </div>
     </div>
   </div>
 

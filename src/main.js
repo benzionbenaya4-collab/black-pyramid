@@ -8,6 +8,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { PYR, WORLD_RADIUS, CAMP, colliders, groundAt, createWorld, envUniforms } from './world.js';
 import { glyphUniforms } from './glyphs.js';
 import { createGolem } from './golem.js';
+import { createEditor, loadDesign } from './editor.js';
 import { createStory, defaultFlags, GATE_HOUR } from './story.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
 
@@ -48,6 +49,36 @@ const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerW
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6, 0.45, 1.0));
 composer.addPass(new OutputPass());
+// painterly pass (Kuwahara filter): flattens small details into soft brush-like patches of colour
+const PAINT_R = matchMedia('(pointer: coarse)').matches ? 2 : 3;
+const painter = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(innerWidth, innerHeight) } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 res; varying vec2 vUv;
+    #define R ${PAINT_R}
+    void main(){
+      vec2 px = 1.0 / res;
+      vec3 m0 = vec3(0.), m1 = vec3(0.), m2 = vec3(0.), m3 = vec3(0.);
+      vec3 s0 = vec3(0.), s1 = vec3(0.), s2 = vec3(0.), s3 = vec3(0.);
+      for (int j = 0; j <= R; j++) for (int i = 0; i <= R; i++) {
+        vec3 c;
+        c = texture2D(tDiffuse, vUv + vec2(-i, -j) * px).rgb; m0 += c; s0 += c * c;
+        c = texture2D(tDiffuse, vUv + vec2( i, -j) * px).rgb; m1 += c; s1 += c * c;
+        c = texture2D(tDiffuse, vUv + vec2(-i,  j) * px).rgb; m2 += c; s2 += c * c;
+        c = texture2D(tDiffuse, vUv + vec2( i,  j) * px).rgb; m3 += c; s3 += c * c;
+      }
+      float n = float((R + 1) * (R + 1));
+      m0 /= n; m1 /= n; m2 /= n; m3 /= n;
+      vec3 v0 = s0 / n - m0 * m0, v1 = s1 / n - m1 * m1, v2 = s2 / n - m2 * m2, v3 = s3 / n - m3 * m3;
+      float a0 = v0.r + v0.g + v0.b, a1 = v1.r + v1.g + v1.b, a2 = v2.r + v2.g + v2.b, a3 = v3.r + v3.g + v3.b;
+      vec3 col = m0; float best = a0;
+      if (a1 < best) { best = a1; col = m1; }
+      if (a2 < best) { best = a2; col = m2; }
+      if (a3 < best) { col = m3; }
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+});
+composer.addPass(painter);
 composer.addPass(new ShaderPass({
   uniforms: { tDiffuse: { value: null } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -56,8 +87,8 @@ composer.addPass(new ShaderPass({
       vec3 c = texture2D(tDiffuse, vUv).rgb;
       c = (c - 0.5) * 1.08 + 0.5;                                  // a touch more contrast
       float l = dot(c, vec3(0.299, 0.587, 0.114));
-      c = mix(vec3(l), c, 1.12);                                   // richer colour
-      c *= vec3(1.03, 1.0, 0.95);                                  // warm desert grade
+      c = mix(vec3(l), c, 1.18);                                   // richer colour
+      c *= vec3(1.04, 1.0, 0.96);                                  // warm desert grade
       float v = smoothstep(1.05, 0.35, length(vUv - 0.5) * 1.25);  // soft vignette
       gl_FragColor = vec4(clamp(c, 0.0, 1.0) * mix(0.72, 1.0, v), 1.0);
     }`,
@@ -66,9 +97,10 @@ composer.addPass(new ShaderPass({
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  painter.uniforms.res.value.set(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
 });
 
-const hemi = new THREE.HemisphereLight(0xbfd8ff, 0xc99a5c, 0.6);
+const hemi = new THREE.HemisphereLight(0xa8d8ff, 0xe0a070, 0.6);
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -79,8 +111,25 @@ scene.add(hemi, sun, sun.target);
 // ================================================================ world + hero
 const world = createWorld(scene);
 const { pyramid, camp, sky } = world;
-const golem = createGolem();
+scene.traverse((o) => {
+  const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+  for (const mt of mats) {
+    if (!mt.isMeshStandardMaterial || mt.userData.keepFlat || mt.userData.painted) continue;
+    mt.userData.painted = true;
+    mt.flatShading = false;
+    if (mt.metalness < 0.5) mt.roughness = Math.max(mt.roughness, 0.8);
+    else { mt.metalness = 0.6; mt.roughness = Math.max(mt.roughness, 0.4); }
+    mt.needsUpdate = true;
+  }
+});
+let golem = createGolem(loadDesign());
 scene.add(golem.group, golem.trickle);
+function applyDesign(design) {
+  scene.remove(golem.group, golem.trickle); golem.dispose();
+  golem = createGolem(design); scene.add(golem.group, golem.trickle);
+  golem.setPower(shardCount());
+}
+const editor = createEditor({ onSave: (d) => { applyDesign(d); toast('העיצוב החדש של חארו נשמר!'); } });
 
 // ================================================================ state + the timer
 let state = null;
@@ -116,7 +165,7 @@ function discovered() { return store.get(ENDINGS_KEY) || []; }
 
 // ================================================================ story
 const story = createStory({
-  scene, world, golem, toast,
+  scene, world, golem: { setPower: (n) => golem.setPower(n) }, toast,
   getState: () => state,
   hour: worldHour, hoursLeft, elapsed: elapsedReal,
   playerPos: () => player.pos,
@@ -141,6 +190,7 @@ function pressAction() {
   if (story.busy) story.dialog.advance(); else story.interact();
 }
 addEventListener('keydown', (e) => {
+  if (editor.isOpen) return;   // typing in the designer must not move the hero
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (phase === 'playing' && story.busy) {
     if (!e.repeat && ['KeyE', 'Space', 'Enter'].includes(e.code)) story.dialog.advance();
@@ -192,6 +242,8 @@ if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) {
   $('t-run').addEventListener('pointerdown', (e) => { e.preventDefault(); keys.ShiftRight = !keys.ShiftRight; $('t-run').classList.toggle('on', !!keys.ShiftRight); });
 }
 $('btn-journal').addEventListener('click', () => toggleJournal());
+$('btn-design').addEventListener('click', () => editor.open());
+$('btn-design-title').addEventListener('click', () => editor.open());
 $('journal-close').addEventListener('click', () => toggleJournal(false));
 function toggleJournal(force) {
   const el = $('journal'), show = force ?? el.classList.contains('hidden');
@@ -267,7 +319,7 @@ function endGame(reason) {
 // ================================================================ day / night
 const C = (h) => new THREE.Color(h);
 const SKY = {
-  dayTop: C(0x3f86d6), dayBot: C(0xf4d6a4), setTop: C(0x3b2a6e), setBot: C(0xff8a4a),
+  dayTop: C(0x5aaed6), dayBot: C(0xffcf9e), setTop: C(0x56408e), setBot: C(0xff9256),
   nightTop: C(0x03040c), nightBot: C(0x1c1838), stormBot: C(0x9a5a2a),
 };
 const tmpA = new THREE.Color(), tmpB = new THREE.Color(), sunDir = new THREE.Vector3();
@@ -286,8 +338,8 @@ function updateSky(hour, doom, focus) {
   sky.uniforms.sunDir.value.copy(sunDir);
   sky.uniforms.sunCol.value.setHex(0xffc070).multiplyScalar(dayF * (1 - doom * 0.8));
   scene.fog.color.copy(tmpB);
-  scene.fog.far = THREE.MathUtils.lerp(2300, 300, doom);
-  scene.fog.near = THREE.MathUtils.lerp(300, 30, doom);
+  scene.fog.far = THREE.MathUtils.lerp(1900, 300, doom);
+  scene.fog.near = THREE.MathUtils.lerp(160, 30, doom);
   sky.group.position.copy(camera.position);
   sky.sunMesh.position.copy(sunDir).multiplyScalar(2500);
   sky.moonMesh.position.copy(sunDir).multiplyScalar(-2500);
@@ -299,9 +351,9 @@ function updateSky(hour, doom, focus) {
   sun.position.copy(focus).addScaledVector(lightDir, 700);
   sun.target.position.copy(focus);
   if (night) { sun.color.setHex(0x9fb4ff); sun.intensity = 0.8; }
-  else { sun.color.setHex(0xff9a5a).lerp(C(0xfff1d6), dayF); sun.intensity = 0.8 + 1.2 * dayF; }
-  hemi.intensity = 0.45 + 0.4 * dayF;
-  hemi.color.copy(tmpA).lerp(C(0xffffff), 0.4);
+  else { sun.color.setHex(0xff9a5a).lerp(C(0xffe4bc), dayF); sun.intensity = 0.75 + 1.0 * dayF; }
+  hemi.intensity = 0.55 + 0.45 * dayF;
+  hemi.color.copy(tmpA).lerp(C(0xbfe4ff), 0.5);
   glyphUniforms.uGlow.value = 1.1 + 1.6 * (1 - dayF) + doom * 1.2;
   envUniforms.uSun.value = dayF * (1 - doom);
   world.sand.mat.opacity = 0.5 + doom * 0.5;
