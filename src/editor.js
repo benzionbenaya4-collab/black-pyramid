@@ -3,19 +3,19 @@ import * as THREE from 'three';
 import { createGolem, DEFAULT_DESIGN, normalizeDesign } from './golem.js';
 
 const $ = (id) => document.getElementById(id);
-const KEY = 'blackPyramid.hero.v1';
+const KEY = 'blackPyramid.hero.v2';
 
 const COLOR_LABELS = {
-  armor: 'שריון', armorDark: 'שריון כהה (חצאית)', trim: 'עיטורי זהב', hood: 'ברדס', mask: 'מסכה', visor: 'זוהר העיניים',
-  gloves: 'כפפות ומגני רגליים', suit: 'בגד פנימי', belt: 'חגורה', gem: 'אבני חן', cape: 'גלימה',
+  armor: 'שריון ומעיל', armorDark: 'מעיל תחתון', trim: 'עיטורי זהב', hood: 'ברדס וצווארון', glow: 'זוהר (אבני חן וקווים)',
+  gloves: 'כפפות', suit: 'שרוולים ומכנסיים', belt: 'חגורה', boots: 'מגפיים', shoes: 'נעליים', cape: 'גלימה',
 };
 const SIZE_LABELS = { height: ['גובה', 0.7, 1.4], hood: ['גודל הברדס', 0.7, 1.5], shoulders: ['גודל הכתפיים', 0.6, 1.6], hands: ['גודל הידיים', 0.6, 1.6] };
-const PART_LABELS = { crest: 'כתר זהב על הברדס', cape: 'גלימה', tabard: 'סינר קדמי', shoulderPlates: 'לוחות על הכתפיים', chestEmblem: 'סמל השמש על החזה' };
+const PART_LABELS = { crest: 'טבעת זהב ואבן על הברדס', sideBars: 'מוטות זהב לצד הברדס', cape: 'גלימה', tabard: 'סינר קדמי מעוטר', chestEmblem: 'גלגל השמש על החזה' };
 const PRESETS = {
-  'קלאסי': DEFAULT_DESIGN.colors,
-  'שומר החולות': { armor: '#d9a35f', armorDark: '#9c6a36', trim: '#f2d27a', hood: '#2a8f8f', mask: '#f2d27a', visor: '#9ffff0', gloves: '#e8d6b0', suit: '#3b2a1c', belt: '#5a3417', gem: '#3df0d0', cape: '#2a8f8f' },
-  'ליקוי': { armor: '#2b2b38', armorDark: '#17171f', trim: '#c9a0ff', hood: '#3a2266', mask: '#d8d8e8', visor: '#ff4a6a', gloves: '#6c6c86', suit: '#101018', belt: '#2a1a3a', gem: '#b05aff', cape: '#3a2266' },
-  'שקיעה': { armor: '#ff7a2a', armorDark: '#c2431a', trim: '#ffd36a', hood: '#7a1f3a', mask: '#ffd36a', visor: '#fff2a0', gloves: '#ffc9a0', suit: '#3a1420', belt: '#5a2a14', gem: '#ff3a6a', cape: '#7a1f3a' },
+  'העיצוב שלך': DEFAULT_DESIGN.colors,
+  'שומר החולות': { armor: '#d9a35f', armorDark: '#a8743d', trim: '#f2d27a', hood: '#2a8f8f', glow: '#3df0d0', gloves: '#8a5a30', suit: '#3b2a1c', belt: '#5a3417', boots: '#e8d6b0', shoes: '#2a8f8f', cape: '#2a8f8f' },
+  'ליקוי': { armor: '#2b2b38', armorDark: '#17171f', trim: '#c9a0ff', hood: '#3a2266', glow: '#ff4a6a', gloves: '#3a2266', suit: '#101018', belt: '#2a1a3a', boots: '#6c6c86', shoes: '#3a2266', cape: '#3a2266' },
+  'שקיעה': { armor: '#ff7a2a', armorDark: '#c2431a', trim: '#ffd36a', hood: '#7a1f3a', glow: '#fff2a0', gloves: '#c2431a', suit: '#3a1420', belt: '#5a2a14', boots: '#ffc9a0', shoes: '#7a1f3a', cape: '#7a1f3a' },
 };
 
 export function loadDesign() { try { return normalizeDesign(JSON.parse(localStorage.getItem(KEY))); } catch { return normalizeDesign(null); } }
