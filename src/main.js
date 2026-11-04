@@ -4,6 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { PYR, WORLD_RADIUS, CAMP, colliders, groundAt, createWorld, envUniforms } from './world.js';
 import { glyphUniforms } from './glyphs.js';
 import { createGolem } from './golem.js';
@@ -42,10 +43,25 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xf3d3a0, 300, 2300);
 const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.8, 7000);
 
-const composer = new EffectComposer(renderer);
+// post-processing: multisampled (anti-aliased) HDR target → bloom → tone mapping → cinematic colour grade
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: 4, type: THREE.HalfFloatType }));
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6, 0.45, 1.0));
 composer.addPass(new OutputPass());
+composer.addPass(new ShaderPass({
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      c = (c - 0.5) * 1.08 + 0.5;                                  // a touch more contrast
+      float l = dot(c, vec3(0.299, 0.587, 0.114));
+      c = mix(vec3(l), c, 1.12);                                   // richer colour
+      c *= vec3(1.03, 1.0, 0.95);                                  // warm desert grade
+      float v = smoothstep(1.05, 0.35, length(vUv - 0.5) * 1.25);  // soft vignette
+      gl_FragColor = vec4(clamp(c, 0.0, 1.0) * mix(0.72, 1.0, v), 1.0);
+    }`,
+}));
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
@@ -444,7 +460,7 @@ function frame() {
     if (!dragging) cam.orbit *= Math.exp(-dt * 1.6);   // look-around offset eases back behind the hero
     let dy = player.facing + Math.PI + cam.orbit - cam.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
     cam.yaw += dy * Math.min(1, dt * 6);
-    camTarget.set(player.pos.x, player.pos.y + 14, player.pos.z);
+    camTarget.set(player.pos.x, player.pos.y + 15, player.pos.z);
     const cx = camTarget.x + Math.sin(cam.yaw) * Math.cos(cam.pitch) * cam.dist;
     const cz = camTarget.z + Math.cos(cam.yaw) * Math.cos(cam.pitch) * cam.dist;
     const cy = Math.max(camTarget.y + Math.sin(cam.pitch) * cam.dist, groundAt(cx, cz) + 2.5);
