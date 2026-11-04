@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>משמר הפירמידה השחורה</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="clock">
+      <div class="row"><span class="lbl">שעה בעולם</span><span id="clk-hour">06:00</span></div>
+      <div class="row"><span class="lbl">נותרו (עולם)</span><span id="clk-left">24:00</span></div>
+      <div class="row small"><span class="lbl">זמן אמת נותר</span><span id="clk-real">2:00:00</span></div>
+      <div id="warp" class="hidden">⏩ מצב בדיקה ×120</div>
+    </div>
+    <div id="objectives"></div>
+    <canvas id="minimap" width="200" height="200"></canvas>
+    <div id="prompt" class="hidden"></div>
+    <div id="progress" class="hidden"><div id="progress-bar"></div></div>
+    <div id="toast" class="hidden"></div>
+    <div id="touch" class="hidden">
+      <div id="joy"><div id="joy-knob"></div></div>
+      <div id="tbtns">
+        <button id="t-e" type="button">E</button>
+        <button id="t-jump" type="button">⤒</button>
+        <button id="t-run" type="button">ריצה</button>
+      </div>
+    </div>
+    <button id="btn-journal" type="button">📜 יומן (J)</button>
+    <div id="dialog" class="hidden">
+      <div id="dlg-name"></div>
+      <div id="dlg-text"></div>
+      <div id="dlg-choices"></div>
+      <div id="dlg-hint">E / רווח / לחיצה: המשך</div>
+    </div>
+    <div id="help">WASD / חיצים: תנועה · Shift: ריצה · רווח: קפיצה · גרירת עכבר: מצלמה · גלגלת: זום · E: דיבור ופעולה · J: יומן</div>
+  </div>
+
+  <!-- Title screen -->
+  <div id="title" class="screen">
+    <div class="panel">
+      <h1>משמר הפירמידה השחורה</h1>
+      <p class="story">
+        לפני 3000 שנה כלא מלך הליקוי, <b>סת'אר</b>, את השמש האפלה בתוך פירמידה שחורה.
+        אחותו, הכוהנת <b>נפירה</b>, יצרה מחול העיר שומר אחד שישמור עליה.<br>
+        עכשיו החותם נסדק. אתה <b>חארו, משמר החול</b>, ונותרו לך <b>24 שעות</b>.
+      </p>
+      <p class="story small">
+        פגוש את רוחה של נפירה ואת תאמון החכם, פתור את חידות המקדשים ואת חידות שומר העצמות,
+        אסוף את ארבעת <b>רסיסי השמש</b> ואת זיכרונותיך האבודים, והחלט אם להציל את השיירה של לינה.
+        בשער הפירמידה תבחר: לחתום את החושך או ללבוש אותו.
+      </p>
+      <p class="note">⏱ הטיימר רץ בזמן אמת כל עוד המשחק פתוח, ואין כפתור עצירה: <b>שעתיים</b> = 24 שעות בעולם.
+        שער הפירמידה נפתח רק בשעה 14:00, אחרי <b>40 דקות</b> של משחק. יש 8 סופים שונים.</p>
+      <div class="buttons">
+        <button id="btn-continue" class="hidden">המשך משחק</button>
+        <button id="btn-new">משחק חדש</button>
+      </div>
+      <p id="endings-found" class="note"></p>
+    </div>
+  </div>
+
+  <!-- Choice modal -->
+  <div id="choice" class="screen hidden">
+    <div class="panel">
+      <h2 id="choice-title"></h2>
+      <p id="choice-text"></p>
+      <div id="choice-buttons" class="buttons col"></div>
+    </div>
+  </div>
+
+  <!-- Journal -->
+  <div id="journal" class="screen hidden">
+    <div class="panel journal">
+      <h2>יומן המסע של חארו</h2>
+      <div id="journal-body"></div>
+      <div class="buttons"><button id="journal-close" type="button">סגור</button></div>
+    </div>
+  </div>
+
+  <!-- Ending screen -->
+  <div id="ending" class="screen hidden">
+    <div class="panel">
+      <div id="ending-num" class="note"></div>
+      <h1 id="ending-title"></h1>
+      <div id="ending-text" class="story"></div>
+      <div id="ending-stats" class="note"></div>
+      <div id="ending-list"></div>
+      <div class="buttons"><button id="btn-restart">משחק חדש</button></div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
