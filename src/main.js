@@ -19,7 +19,8 @@ const WARP = 120;
 const SAVE_KEY = 'blackPyramid.save.v3';
 const ENDINGS_KEY = 'blackPyramid.endings.v1';
 const START_POS = { x: 0, z: 300 };
-const PLAYER_R = 3;
+const PLAYER_R = 4.5;
+const WALK = 24, RUN = 50, TURN = 2.3;   // speeds (m/s) and turn rate (rad/s)
 const $ = (id) => document.getElementById(id);
 
 const store = {
@@ -71,7 +72,7 @@ let phase = 'title';           // title | playing | choice | ended
 let warpOn = false;
 let holdDtNow = 0;
 const player = { pos: new THREE.Vector3(START_POS.x, 0.5, START_POS.z), velY: 0, facing: Math.PI, speed: 0, grounded: true };
-const cam = { yaw: 0, pitch: 0.28, dist: 38 };
+const cam = { yaw: 0, pitch: 0.24, dist: 46, orbit: 0 };   // orbit = temporary look-around offset from dragging
 
 function newState() { return { elapsed: 0, shards: [false, false, false, false], caravan: false, px: START_POS.x, pz: START_POS.z, ended: false, f: defaultFlags() }; }
 function save() { if (state && !state.ended) { state.px = player.pos.x; state.pz = player.pos.z; store.set(SAVE_KEY, state); } }
@@ -144,11 +145,11 @@ renderer.domElement.addEventListener('pointerdown', (e) => { dragging = true; la
 renderer.domElement.addEventListener('pointerup', () => { dragging = false; });
 renderer.domElement.addEventListener('pointermove', (e) => {
   if (!dragging) return;
-  cam.yaw -= (e.clientX - lastX) * 0.006;
+  cam.orbit -= (e.clientX - lastX) * 0.006;
   cam.pitch = THREE.MathUtils.clamp(cam.pitch + (e.clientY - lastY) * 0.004, 0.03, 1.25);
   lastX = e.clientX; lastY = e.clientY;
 });
-renderer.domElement.addEventListener('wheel', (e) => { cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * 0.04, 14, 140); }, { passive: true });
+renderer.domElement.addEventListener('wheel', (e) => { cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * 0.05, 24, 170); }, { passive: true });
 
 // touch controls: virtual joystick + buttons
 const touch = { x: 0, y: 0, active: false };
@@ -195,7 +196,7 @@ function startGame(fresh) {
   store.set(SAVE_KEY, state);
   applyStateToWorld();
   phase = 'playing';
-  cam.yaw = 0;
+  cam.yaw = player.facing + Math.PI; cam.orbit = 0;
   $('title').classList.add('hidden');
   $('hud').classList.remove('hidden');
   toast(fresh ? 'הפירמידה השחורה מתעוררת... רוח מחכה לך בשדרת הספינקסים.' : 'ברוך שובך, משמר החול. הזמן לא חיכה לך.');
@@ -315,32 +316,29 @@ function onStep(leg) {
   leg.getWorldPosition(footPos);
   const fx = footPos.x + Math.sin(player.facing) * 1.2, fz = footPos.z + Math.cos(player.facing) * 1.2;
   world.footprints.add(fx, fz, player.facing);
-  if (player.speed > 25) world.dust.puff(fx, groundAt(fx, fz), fz, 5, 0.8);
+  if (player.speed > 30) world.dust.puff(fx, groundAt(fx, fz), fz, 5, 0.8);
 }
 
 function updatePlaying(dt) {
   if (elapsedReal() >= REAL_DURATION) { endGame('timeout'); return; }
   const canMove = !story.busy;
-  fwd.set(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw));
-  right.set(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
-  move.set(0, 0, 0);
+  // W/S walk along the facing direction, A/D turn the hero — the camera stays behind, so we always see his back
+  let fwdIn = 0, turnIn = 0;
   if (canMove) {
-    if (keys.KeyW || keys.ArrowUp) move.add(fwd);
-    if (keys.KeyS || keys.ArrowDown) move.sub(fwd);
-    if (keys.KeyD || keys.ArrowRight) move.add(right);
-    if (keys.KeyA || keys.ArrowLeft) move.sub(right);
-    if (touch.active) move.addScaledVector(right, touch.x).addScaledVector(fwd, -touch.y);
+    if (keys.KeyW || keys.ArrowUp) fwdIn += 1;
+    if (keys.KeyS || keys.ArrowDown) fwdIn -= 1;
+    if (keys.KeyD || keys.ArrowRight) turnIn -= 1;
+    if (keys.KeyA || keys.ArrowLeft) turnIn += 1;
+    if (touch.active) { fwdIn += -touch.y; turnIn += -touch.x; }
   }
-  const running = keys.ShiftLeft || keys.ShiftRight;
-  const target = move.lengthSq() > 0 ? (running ? 42 : 20) : 0;
-  player.speed = THREE.MathUtils.damp(player.speed, target, 8, dt);
-  if (move.lengthSq() > 0) {
-    move.normalize();
-    const want = Math.atan2(move.x, move.z);
-    let d = want - player.facing; d = Math.atan2(Math.sin(d), Math.cos(d));
-    player.facing += d * Math.min(1, dt * 10);
-    player.pos.addScaledVector(move, player.speed * dt);
-  }
+  fwdIn = THREE.MathUtils.clamp(fwdIn, -1, 1); turnIn = THREE.MathUtils.clamp(turnIn, -1, 1);
+  const running = (keys.ShiftLeft || keys.ShiftRight) && fwdIn > 0;
+  player.turn = THREE.MathUtils.damp(player.turn || 0, turnIn, 10, dt);
+  player.facing += player.turn * TURN * (running ? 0.75 : 1) * dt;
+  const target = fwdIn > 0 ? (running ? RUN : WALK) * fwdIn : fwdIn * WALK * 0.55;
+  player.speed = THREE.MathUtils.damp(player.speed, target, 7, dt);
+  fwd.set(Math.sin(player.facing), 0, Math.cos(player.facing));
+  player.pos.addScaledVector(fwd, player.speed * dt);
   resolveCollisions(player.pos);
   const g = groundAt(player.pos.x, player.pos.z);
   if (canMove && keys.Space && player.grounded) { player.velY = 24; player.grounded = false; }
@@ -435,7 +433,7 @@ function frame() {
   golem.group.position.copy(player.pos);
   golem.group.rotation.y = player.facing;
   golem.group.visible = phase !== 'title';
-  golem.update(dt, Math.min(1, player.speed / 20), t, phase === 'playing' ? onStep : null);
+  golem.update(dt, Math.min(1, Math.abs(player.speed) / WALK + Math.abs(player.turn || 0) * 0.35), t, phase === 'playing' ? onStep : null, player.speed < -0.5 ? -1 : 1);
 
   const cinematic = phase === 'title' || phase === 'ended';
   if (cinematic) {
@@ -443,7 +441,10 @@ function frame() {
     camera.position.set(Math.sin(a) * r, 95 + Math.sin(t * 0.1) * 18, Math.cos(a) * r);
     camera.lookAt(0, 60, 0);
   } else {
-    camTarget.set(player.pos.x, player.pos.y + 8.5, player.pos.z);
+    if (!dragging) cam.orbit *= Math.exp(-dt * 1.6);   // look-around offset eases back behind the hero
+    let dy = player.facing + Math.PI + cam.orbit - cam.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    cam.yaw += dy * Math.min(1, dt * 6);
+    camTarget.set(player.pos.x, player.pos.y + 14, player.pos.z);
     const cx = camTarget.x + Math.sin(cam.yaw) * Math.cos(cam.pitch) * cam.dist;
     const cz = camTarget.z + Math.cos(cam.yaw) * Math.cos(cam.pitch) * cam.dist;
     const cy = Math.max(camTarget.y + Math.sin(cam.pitch) * cam.dist, groundAt(cx, cz) + 2.5);
@@ -465,5 +466,6 @@ frame();
 window.__game = {
   get state() { return state; }, get phase() { return phase; }, endGame, startGame, story,
   teleport(x, z) { player.pos.set(x, groundAt(x, z), z); },
-  look(yaw, pitch, dist) { cam.yaw = yaw; if (pitch !== undefined) cam.pitch = pitch; if (dist !== undefined) cam.dist = dist; },
+  view(orbit) { cam.orbit = orbit; cam.yaw = player.facing + Math.PI + orbit; dragging = true; },
+  look(yaw, pitch, dist) { player.facing = yaw + Math.PI; cam.yaw = yaw; if (pitch !== undefined) cam.pitch = pitch; if (dist !== undefined) cam.dist = dist; },
 };
