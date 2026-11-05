@@ -25,7 +25,8 @@ const STEPS = [
   'החלקת קצוות MSAA ×4',
   'זוהר (Bloom)',
   'מסנן ציורי (Kuwahara)',
-  'רזולוציה מלאה של המסך',
+  'מסך מלא ב-1280×720 (כמו במשחק עכשיו)',
+  'רזולוציה מלאה של המסך (בלי הגבלה)',
 ];
 
 // last visit crashed in the middle of a step?
@@ -98,7 +99,11 @@ async function run() {
     },
     () => {
       canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:50;background:#000';
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.75)); [W, H] = size(); camera.aspect = W / H; camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(1, Math.sqrt(1280 * 720 / (innerWidth * innerHeight)))); [W, H] = size(); camera.aspect = W / H; camera.updateProjectionMatrix();
+      composer?.setPixelRatio(renderer.getPixelRatio()); composer?.setSize(W, H);
+    },
+    () => {
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.75)); [W, H] = size();
       composer?.setPixelRatio(renderer.getPixelRatio()); composer?.setSize(W, H);
     },
   ];

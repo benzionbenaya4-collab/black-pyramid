@@ -105,6 +105,8 @@ composer.addPass(new ShaderPass({
 }));
 
 function resize() {
+  // never draw more pixels than this device's graphics memory handles (Xbox: 1280×720, stretched to the TV)
+  if (Q.maxPixels) { const cap = Math.sqrt(Q.maxPixels / (innerWidth * innerHeight)); if (renderer.getPixelRatio() > cap) renderer.setPixelRatio(cap); }
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight);
   painter.uniforms.res.value.set(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());

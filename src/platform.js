@@ -14,12 +14,13 @@ export const isMobile = !isConsole && (/Android|iPhone|iPad|iPod|Mobile/i.test(U
 export const device = isConsole ? 'console' : isMobile ? 'phone' : 'pc';
 const PROFILES = {
   pc: { pixelRatio: 1.75, minRatio: 0.85, msaa: 4, halfFloat: true, painter: 3, bloom: true, shadow: 2048, groundSeg: 360 },
-  console: { pixelRatio: 1, minRatio: 0.75, msaa: 2, halfFloat: false, painter: 2, bloom: true, shadow: 2048, groundSeg: 300 },
+  // Xbox: every effect works, but full-TV-resolution buffers run out of graphics memory (diag.html, step 11):
+  // draw internally at up to 1280×720 and let the browser stretch it to the screen, like console games do
+  console: { pixelRatio: 1, minRatio: 0.6, maxPixels: 1280 * 720, msaa: 4, halfFloat: true, painter: 2, bloom: true, shadow: 2048, groundSeg: 300 },
   phone: { pixelRatio: 2, minRatio: 1, msaa: 4, halfFloat: true, painter: 2, bloom: true, shadow: 1024, groundSeg: 240 },
 };
-const MEM_KEY = `blackPyramid.lowMem.${device}`;
-// Xbox starts in the stable safe mode (WebGL1, lighter effects) until we know more about its GPU (diag.html)
-const DEFAULT_SAFE = isConsole ? 2 : 0;
+const MEM_KEY = `blackPyramid.lowMem.v2.${device}`;   // v2: old crash records (before the resolution cap) are ignored
+const DEFAULT_SAFE = 0;
 export function lowMem() { try { const v = localStorage.getItem(MEM_KEY); return v === null ? DEFAULT_SAFE : +v || 0; } catch { return DEFAULT_SAFE; } }
 export function quality() {
   try { localStorage.removeItem('blackPyramid.quality'); } catch { /* old manual setting is no longer used */ }
@@ -87,7 +88,7 @@ export function createAutoRes(Q, apply) {
 // Some console / phone GPUs draw a plain white (or flat) picture with certain effects. This samples the
 // rendered frame now and then; if it looks broken it switches the next effect off, and remembers it.
 export function createRenderGuard(renderer, steps, name) {
-  const KEY = `blackPyramid.safeLevel.${name}.${device}`;
+  const KEY = `blackPyramid.safeLevel.v2.${name}.${device}`;
   let level = 0;
   try { level = Math.min(steps.length, +localStorage.getItem(KEY) || 0); } catch { /* no storage */ }
   for (let i = 0; i < level; i++) steps[i]();
