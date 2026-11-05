@@ -12,7 +12,7 @@ const ramp = (() => {
   t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t;
 })();
 let rimId = 0;
-function toon(color, { rim = 0.18, rimColor = 0xdff4ff, side = THREE.FrontSide, vertexColors = false } = {}) {
+export function toon(color, { rim = 0.18, rimColor = 0xdff4ff, side = THREE.FrontSide, vertexColors = false } = {}) {
   const m = new THREE.MeshToonMaterial({ color, gradientMap: ramp, side, vertexColors });
   const id = 'toonrim' + (rimId++);
   m.customProgramCacheKey = () => id;
@@ -30,7 +30,7 @@ const outlineMat = new THREE.ShaderMaterial({
   vertexShader: 'uniform float thickness; void main(){ vec3 p = position + normal * thickness; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }',
   fragmentShader: 'uniform vec3 color; void main(){ gl_FragColor = vec4(color, 1.0); }',
 });
-function addOutline(group) {
+export function addOutline(group) {
   const meshes = []; group.traverse((o) => { if (o.isMesh && !o.userData.noOutline) meshes.push(o); });
   for (const m of meshes) {
     const g = m.geometry.clone(); g.deleteAttribute('normal'); if (g.attributes.color) g.deleteAttribute('color');

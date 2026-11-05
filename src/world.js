@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Batch, MAT, rockGeometry, rng, smooth, paint } from './util.js';
 import { makeGlyphMaterial, glyphUniforms } from './glyphs.js';
+import { ARENA } from './combat.js';
 
 // ================================================================ layout
 export const PYR = { HALF: 115, HEIGHT: 140, PLAZA: 200 };
@@ -32,6 +33,7 @@ const PADS = [
   ...SHARD_SITES.map((s) => ({ x: s.x, z: s.z, r0: 26, r1: 70, off: 0 })),
   ...SATELLITES.map((s) => ({ x: s.x, z: s.z, r0: s.half * 1.25, r1: s.half * 1.25 + 60, off: 0 })),
   { x: CAMP.x, z: CAMP.z, r0: 70, r1: 150, off: -8 },
+  { x: ARENA.x, z: ARENA.z, r0: ARENA.r + 25, r1: ARENA.r + 100, off: 0 },   // the Plain of Ash (boss arena)
 ];
 PADS.forEach((p) => { p.h = duneRaw(p.x, p.z) + p.off; });
 
@@ -657,13 +659,13 @@ function createDecor() {
   const b = new Batch();
   const r = rng(7);
   const farFrom = (x, z, d) => SHARD_SITES.every((s) => Math.hypot(x - s.x, z - s.z) > d) && Math.hypot(x - CAMP.x, z - CAMP.z) > d
-    && SATELLITES.every((s) => Math.hypot(x - s.x, z - s.z) > s.half + 40) && !(Math.abs(x) < 300 && z > -300 && z < 560);
+    && SATELLITES.every((s) => Math.hypot(x - s.x, z - s.z) > s.half + 40) && !(Math.abs(x) < 300 && z > -300 && z < 560) && Math.hypot(x - ARENA.x, z - ARENA.z) > ARENA.r + 40;
 
   for (const [geo, count, mat] of [[rockGeometry(1, 1, 2, 0.35), 260, MAT.stoneDark], [rockGeometry(1, 0, 5, 0.3), 260, MAT.stone]]) {
     const inst = new THREE.InstancedMesh(geo, mat, count);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
-      let x, z; do { x = (r() - 0.5) * 2600; z = (r() - 0.5) * 2600; } while (Math.max(Math.abs(x), Math.abs(z)) < 240);
+      let x, z; do { x = (r() - 0.5) * 2600; z = (r() - 0.5) * 2600; } while (Math.max(Math.abs(x), Math.abs(z)) < 240 || Math.hypot(x - ARENA.x, z - ARENA.z) < ARENA.r + 30);
       const sc = 0.8 + r() * r() * 7;
       p.set(x, duneHeight(x, z) + sc * 0.2, z); q.setFromEuler(e.set(r() * 3, r() * 3, r() * 3));
       s.set(sc * (0.8 + r() * 0.6), sc * (0.5 + r() * 0.5), sc * (0.8 + r() * 0.6));

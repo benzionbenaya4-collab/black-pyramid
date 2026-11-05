@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Boss preview</title>
+<script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/addons/"}}</script>
+<style>body{margin:0;background:#e8c08a}</style></head><body>
+<script type="module">
+import * as THREE from 'three';
+import { buildShadowKing } from '../src/combat.js';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(2); r.setSize(1100, 620); document.body.appendChild(r.domElement);
+r.toneMapping = THREE.ACESFilmicToneMapping;
+const s = new THREE.Scene(); s.background = new THREE.Color(0xe8c08a);
+s.add(new THREE.HemisphereLight(0xdfe4ff, 0xb08a60, 1.4)); const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(40, 80, 60); s.add(d);
+const k = buildShadowKing(); s.add(k.g);
+r.setScissorTest(true);
+[[0, 0], [Math.PI / 2, 1], [Math.PI, 2]].forEach(([a, i]) => {
+  const c = new THREE.PerspectiveCamera(30, (1100 / 3) / 620, 1, 800); c.position.set(Math.sin(a) * 135, 20, Math.cos(a) * 135); c.lookAt(0, 19, 0);
+  const w = 1100 / 3; r.setViewport(i * w, 0, w, 620); r.setScissor(i * w, 0, w, 620); r.render(s, c);
+});
+window.done = true;
+</script></body></html>

@@ -9,6 +9,8 @@ import { PYR, WORLD_RADIUS, CAMP, colliders, groundAt, createWorld, envUniforms 
 import { glyphUniforms } from './glyphs.js';
 import { createGolem } from './golem.js';
 import { createEditor, loadDesign } from './editor.js';
+import { createCinema } from './cinema.js';
+import { createCombat, ARENA } from './combat.js';
 import { createStory, defaultFlags, GATE_HOUR } from './story.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
 
@@ -133,7 +135,8 @@ const editor = createEditor({ onSave: (d) => { applyDesign(d); toast('העיצו
 
 // ================================================================ state + the timer
 let state = null;
-let phase = 'title';           // title | playing | choice | ended
+let phase = 'title';           // title | playing | choice | cinema | fight | ended
+let emerge = 1;                // 0..1 — the hero rising out of the sand in the intro
 let warpOn = false;
 let holdDtNow = 0;
 const player = { pos: new THREE.Vector3(START_POS.x, 0.5, START_POS.z), velY: 0, facing: Math.PI, speed: 0, grounded: true };
@@ -164,8 +167,19 @@ function fmtReal(s) { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 36
 function discovered() { return store.get(ENDINGS_KEY) || []; }
 
 // ================================================================ story
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const cinema = createCinema();
+let shoutTimer = 0;
+function shout(text, secs = 3.5) { $('boss-shout').textContent = text; $('boss-shout').classList.remove('hidden'); shoutTimer = secs; }
+const combat = createCombat({
+  scene, groundAt, shout,
+  puff: (x, y, z, n, p) => world.dust.puff(x, y, z, n, p),
+  getHero: () => player,
+  onDown: () => shout('נפלת... אבל רסיסי השמש מעירים אותך שוב.'),
+  onWin: () => winFight(),
+});
 const story = createStory({
-  scene, world, golem: { setPower: (n) => golem.setPower(n) }, toast,
+  scene, world, cinema, golem: { setPower: (n) => golem.setPower(n) }, toast,
   getState: () => state,
   hour: worldHour, hoursLeft, elapsed: elapsedReal,
   playerPos: () => player.pos,
@@ -191,6 +205,7 @@ function pressAction() {
 }
 addEventListener('keydown', (e) => {
   if (editor.isOpen) return;   // typing in the designer must not move the hero
+  if (cinema.playing && ['Space', 'KeyE', 'Enter', 'Escape'].includes(e.code) && !e.repeat) { e.preventDefault(); cinema.finish(); return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (phase === 'playing' && story.busy) {
     if (!e.repeat && ['KeyE', 'Space', 'Enter'].includes(e.code)) story.dialog.advance();
@@ -198,6 +213,7 @@ addEventListener('keydown', (e) => {
     return;
   }
   keys[e.code] = true;
+  if (phase === 'fight') { if (e.code === 'KeyF') combat.shoot(); if (e.code === 'KeyR') combat.burst(); return; }
   if (phase !== 'playing') return;
   if (e.code === 'KeyE' && !e.repeat) story.interact();
   if (e.code === 'KeyJ') toggleJournal();
@@ -206,11 +222,12 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
-let dragging = false, lastX = 0, lastY = 0;
-renderer.domElement.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; renderer.domElement.setPointerCapture(e.pointerId); });
-renderer.domElement.addEventListener('pointerup', () => { dragging = false; });
+let dragging = false, lastX = 0, lastY = 0, dragDist = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => { dragging = true; dragDist = 0; lastX = e.clientX; lastY = e.clientY; renderer.domElement.setPointerCapture(e.pointerId); });
+renderer.domElement.addEventListener('pointerup', () => { dragging = false; if (phase === 'fight' && dragDist < 6) combat.shoot(); });
 renderer.domElement.addEventListener('pointermove', (e) => {
   if (!dragging) return;
+  dragDist += Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
   cam.orbit -= (e.clientX - lastX) * 0.006;
   cam.pitch = THREE.MathUtils.clamp(cam.pitch + (e.clientY - lastY) * 0.004, 0.03, 1.25);
   lastX = e.clientX; lastY = e.clientY;
@@ -239,6 +256,8 @@ if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) {
   };
   hold('t-e', 'KeyE', pressAction);
   hold('t-jump', 'Space');
+  hold('t-fire', 'KeyF', () => combat.shoot());
+  hold('t-burst', 'KeyR', () => combat.burst());
   $('t-run').addEventListener('pointerdown', (e) => { e.preventDefault(); keys.ShiftRight = !keys.ShiftRight; $('t-run').classList.toggle('on', !!keys.ShiftRight); });
 }
 $('btn-journal').addEventListener('click', () => toggleJournal());
@@ -263,11 +282,19 @@ function startGame(fresh) {
   state.f = { ...defaultFlags(), ...state.f };
   store.set(SAVE_KEY, state);
   applyStateToWorld();
-  phase = 'playing';
   cam.yaw = player.facing + Math.PI; cam.orbit = 0;
   $('title').classList.add('hidden');
   $('hud').classList.remove('hidden');
-  toast(fresh ? 'הפירמידה השחורה מתעוררת... רוח מחכה לך בשדרת הספינקסים.' : 'ברוך שובך, משמר החול. הזמן לא חיכה לך.');
+  if (!fresh) { phase = 'playing'; toast('ברוך שובך, משמר החול. הזמן לא חיכה לך.'); return; }
+  phase = 'cinema'; emerge = 0;
+  const hp = () => player.pos;
+  cinema.play([
+    { from: [320, 150, 640], to: [190, 105, 430], look: [0, 75, 0], dur: 7, caption: 'לפני 3000 שנה כלא מלך הליקוי, סת\'אר, את השמש האפלה בתוך פירמידה שחורה.' },
+    { from: [70, PYR.HEIGHT + 30, 110], to: [36, PYR.HEIGHT + 22, 64], look: [0, PYR.HEIGHT + 14, 0], dur: 6, caption: 'אחותו, הכוהנת נפירה, יצרה מחול העיר שומר אחד שישמור עליה לנצח.' },
+    { from: () => hp().clone().add(V3(-6, 6, -38)), to: () => hp().clone().add(V3(-14, 14, -52)), look: () => hp().clone().add(V3(0, 9, 0)), dur: 6.5,
+      caption: 'עכשיו החותם נסדק. חארו, משמר החול, פוקח את עיניו.',
+      update: (k) => { emerge = Math.min(1, k * 1.3); if (Math.random() < 0.25) world.dust.puff(hp().x + (Math.random() - 0.5) * 8, hp().y, hp().z + (Math.random() - 0.5) * 8, 6, 1.4); } },
+  ]).then(() => { emerge = 1; phase = 'playing'; toast('הפירמידה השחורה מתעוררת... רוח מחכה לך בשדרת הספינקסים.'); });
 }
 $('btn-new').onclick = () => startGame(true);
 $('btn-continue').onclick = () => startGame(false);
@@ -285,23 +312,83 @@ function openGateChoice() {
   const add = (label, cls, fn, disabled = false) => {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; b.disabled = disabled; b.onclick = fn; boxEl.appendChild(b);
   };
-  add('🔒 חתום את הפירמידה (הקרב את הרסיסים)', '', () => endGame('seal'), n < 4);
+  add('🔒 חתום את הפירמידה (הקרב את הרסיסים)', '', () => startFight(), n < 4);
   add('👑 תבע את כוחה של הפירמידה', 'danger', () => endGame('claim'), n < 4);
   if (n < 4) add('🚪 היכנס בכל זאת', 'danger', () => endGame('enter'));
   add('↩ חזור למדבר', 'ghost', () => { phase = 'playing'; $('choice').classList.add('hidden'); });
   $('choice').classList.remove('hidden');
 }
 
+// ================================================================ the boss fight
+async function startFight() {
+  $('choice').classList.add('hidden');
+  phase = 'cinema';
+  const gz = PYR.HALF + 20;
+  combat.place(0, -40, gz); combat.show(true);
+  await cinema.play([
+    { from: [26, 15, 174], to: [12, 13, 166], look: [0, 14, gz], dur: 4.5, caption: 'חארו מקרב את ארבעת הרסיסים אל השער... והשער מתחיל לרעוד.' },
+    { from: [34, 14, 175], to: [20, 12, 172], look: () => combat.bossPos.clone().add(V3(0, 22, 0)), dur: 5.5,
+      caption: 'סת\'אר: "אם לא תפתח לי, אקח את השמש בכוח! בוא, אחי הקטן, אל מישור האפר!"',
+      update: (k) => combat.place(0, -40 + k * 50, gz + 10 + k * 25) },
+    { from: [90, 150, 330], to: [70, 120, 520], look: () => combat.bossPos.clone().add(V3(0, 15, 0)), dur: 5,
+      caption: 'צל סת\'אר עף מעל שדרת הספינקסים, אל המישור שבקצה הדרך.',
+      update: (k) => combat.place(0, 10 + Math.sin(k * Math.PI) * 70, gz + 35 + k * (ARENA.z + 50 - gz - 35)) },
+  ]);
+  if (state.ended) return;
+  player.pos.set(ARENA.x, groundAt(ARENA.x, ARENA.z - 60), ARENA.z - 60); player.facing = 0; player.speed = 0; player.velY = 0;
+  cam.yaw = player.facing + Math.PI; cam.orbit = 0;
+  combat.start();
+  phase = 'fight'; document.body.classList.add('fight');
+  shout('הבס את צל סת\'אר!');
+}
+async function winFight() {
+  phase = 'cinema'; document.body.classList.remove('fight');
+  const k0 = combat.king.g;
+  await cinema.play([
+    { from: () => combat.bossPos.clone().add(V3(60, 25, -50)), to: () => combat.bossPos.clone().add(V3(40, 35, -70)), look: () => combat.bossPos.clone().add(V3(0, 18, 0)), dur: 5,
+      caption: 'צל סת\'אר מתפורר לאבק של אור...',
+      update: (k) => { k0.scale.setScalar(Math.max(0.05, 1 - k)); if (Math.random() < 0.5) world.dust.puff(combat.bossPos.x + (Math.random() - 0.5) * 30, combat.bossPos.y + Math.random() * 30, combat.bossPos.z, 10, 2); },
+      end: () => { combat.show(false); k0.scale.setScalar(1); } },
+  ]);
+  if (state.ended) return;
+  phase = 'playing';
+  await story.dialog.run(async () => {
+    await story.dialog.say('sethar', 'לא... האור... הוא חם. חם כמו הבקרים של כם-אשר, כשעוד הייתי ילד.');
+    await story.dialog.say('sethar', 'אחותי... אני כבר לא מפחד מהחושך.');
+    await story.dialog.say('nefira', 'לך לישון, אחי. השמש תשמור עליך עכשיו.');
+    await story.dialog.say('kharu', 'הגיע הזמן לחתום את השער.');
+  });
+  endGame('seal');
+}
+
 // ================================================================ endings
+function endingShots(id, paragraphs) {
+  const ground = (x, z) => groundAt(x, z);
+  const S = {
+    gate: (c) => ({ from: [26, 15, 175], to: [12, 13, 167], look: [0, 14, PYR.HALF + 20], caption: c }),
+    gateIn: (c) => ({ from: [0, 14, 174], to: [0, 12, PYR.HALF + 26], look: [0, 12, PYR.HALF], caption: c }),
+    wide: (c) => ({ from: [0, 60, 540], to: [0, 140, 390], look: [0, 80, 0], caption: c }),
+    high: (c) => ({ from: [-420, 260, 420], to: [-300, 220, 300], look: [0, 40, 0], caption: c }),
+    camp: (c) => ({ from: [CAMP.x + 75, ground(CAMP.x, CAMP.z) + 32, CAMP.z + 80], to: [CAMP.x + 38, ground(CAMP.x, CAMP.z) + 20, CAMP.z + 45], look: [CAMP.x, ground(CAMP.x, CAMP.z) + 6, CAMP.z], caption: c }),
+    hero: (c) => ({ from: () => player.pos.clone().add(V3(-28, 12, -32)), to: () => player.pos.clone().add(V3(-12, 15, -24)), look: () => player.pos.clone().add(V3(0, 12, 0)), caption: c }),
+  };
+  const seq = {
+    oasis: ['gate', 'wide', 'camp', 'camp', 'wide', 'hero'], silent: ['gate', 'wide', 'hero', 'hero'], lastlight: ['high', 'gate', 'hero', 'hero'],
+    sunking: ['hero', 'wide', 'camp', 'high', 'hero'], tyrant: ['hero', 'wide', 'high'], swallowed: ['gate', 'gateIn', 'wide'],
+    storm: ['high', 'wide', 'hero'], unclaimed: ['hero', 'wide', 'high'],
+  }[id];
+  return paragraphs.map((p, i) => ({ ...S[seq[Math.min(i, seq.length - 1)]](p), dur: 3 + p.length * 0.055 }));
+}
 function endGame(reason) {
-  if (phase === 'ended') return;
+  if (phase === 'ended' || state.ended) return;
+  combat.stop(); combat.show(false); document.body.classList.remove('fight');
   const left = hoursLeft();
   const ending = determineEnding({ reason, shards: shardCount(), caravan: state.caravan, hoursLeft: left });
   state.ended = true;
   store.set(SAVE_KEY, state);
   const found = new Set(discovered()); found.add(ending.id); store.set(ENDINGS_KEY, [...found]);
-  phase = 'ended';
-  story.dialog.close();
+  phase = 'cinema';
+  story.dialog.close(); cinema.endTalk();
   pyramid.setTint(ending.tint);
   $('choice').classList.add('hidden'); $('journal').classList.add('hidden');
   $('hud').classList.add('hidden');
@@ -313,7 +400,9 @@ function endGame(reason) {
     const got = found.has(e.id);
     return `<div class="${got ? 'got' : ''} ${e.id === ending.id ? 'cur' : ''}">${e.num}. ${got ? e.title : '???'}</div>`;
   }).join('');
-  setTimeout(() => $('ending').classList.remove('hidden'), 1800);
+  if (['seal', 'claim', 'enter'].includes(reason)) { player.pos.set(0, groundAt(0, PYR.HALF + 42), PYR.HALF + 42); player.facing = Math.PI; player.speed = 0; }
+  const paragraphs = endingStory(ending.id, { f: state.f, caravan: state.caravan });
+  cinema.play(endingShots(ending.id, paragraphs)).then(() => { phase = 'ended'; $('ending').classList.remove('hidden'); });
 }
 
 // ================================================================ day / night
@@ -389,10 +478,16 @@ function onStep(leg) {
 
 function updatePlaying(dt) {
   if (elapsedReal() >= REAL_DURATION) { endGame('timeout'); return; }
-  const canMove = !story.busy;
+  const canMove = !story.busy && phase !== 'cinema';
   // W/S walk along the facing direction, A/D turn the hero — the camera stays behind, so we always see his back
   let fwdIn = 0, turnIn = 0;
-  if (canMove) {
+  const tt = cinema.talkTarget();
+  if (tt) {   // in a conversation the hero walks up to the person and turns to face them
+    const dx = tt.npc.x - player.pos.x, dz = tt.npc.z - player.pos.z, d = Math.hypot(dx, dz);
+    let df = Math.atan2(dx, dz) - player.facing; df = Math.atan2(Math.sin(df), Math.cos(df));
+    player.facing += df * Math.min(1, dt * 5);
+    if (d > tt.stand + 2 && Math.abs(df) < 0.8) fwdIn = 0.75;
+  } else if (canMove) {
     if (keys.KeyW || keys.ArrowUp) fwdIn += 1;
     if (keys.KeyS || keys.ArrowDown) fwdIn -= 1;
     if (keys.KeyD || keys.ArrowRight) turnIn -= 1;
@@ -425,7 +520,7 @@ function updateHUD(prompt, progress) {
   $('clk-left').textContent = fmtHM(left);
   $('clk-real').textContent = fmtReal(REAL_DURATION - elapsedReal());
   $('clock').classList.toggle('danger', left < 4);
-  const q = story.quest();
+  const q = phase === 'fight' ? { text: 'הבס את צל סת\'אר במישור האפר', target: null } : story.quest();
   const dist = q.target ? Math.round(Math.hypot(player.pos.x - q.target.x, player.pos.z - q.target.z)) : 0;
   const n = shardCount();
   $('objectives').innerHTML =
@@ -488,7 +583,16 @@ function frame() {
   holdDtNow = Math.min(rawDt, 0.5);   // real time for hold-to-act and messages, even on slow machines
   t += dt;
 
-  if (phase === 'playing') updatePlaying(dt);
+  if (phase === 'playing' || phase === 'fight') updatePlaying(dt);
+  if (phase === 'fight') {
+    if (keys.KeyF) combat.shoot();
+    story.update(dt, t, {}, player.pos);
+    if (phase === 'fight') { updateHUD('', 0); drawMinimap(); }
+  }
+  combat.update(dt, t);
+  document.body.classList.toggle('cine', cinema.active);
+  if (shoutTimer > 0) { shoutTimer -= holdDtNow; if (shoutTimer <= 0) $('boss-shout').classList.add('hidden'); }
+  if ((phase === 'cinema' || phase === 'fight') && toastTimer > 0) { toastTimer -= holdDtNow; if (toastTimer <= 0) $('toast').classList.add('hidden'); }
   if (phase === 'playing' || phase === 'choice') {
     if (phase === 'choice' && elapsedReal() >= REAL_DURATION) endGame('timeout');   // the clock never stops
     const s = story.update(dt, t, phase === 'playing' ? keys : {}, player.pos);
@@ -499,12 +603,15 @@ function frame() {
 
   pyramid.doorGlowMat.opacity = state && story.gateOpen() ? 0.35 + (shardCount() / 4) * 0.4 + 0.2 * Math.sin(t * 3) : 0;
   golem.group.position.copy(player.pos);
+  golem.group.position.y -= (1 - emerge) * 18;
   golem.group.rotation.y = player.facing;
   golem.group.visible = phase !== 'title';
-  golem.update(dt, Math.min(1, Math.abs(player.speed) / WALK + Math.abs(player.turn || 0) * 0.35), t, phase === 'playing' ? onStep : null, player.speed < -0.5 ? -1 : 1);
+  golem.update(dt, Math.min(1, Math.abs(player.speed) / WALK + Math.abs(player.turn || 0) * 0.35), t, phase === 'playing' || phase === 'fight' ? onStep : null, player.speed < -0.5 ? -1 : 1);
 
   const cinematic = phase === 'title' || phase === 'ended';
-  if (cinematic) {
+  if (cinema.apply(camera, dt, { heroPos: player.pos, heroFacing: player.facing, heroH: 16 })) {
+    // a cinematic shot or a conversation is framing the camera
+  } else if (cinematic) {
     const a = t * 0.04 + 0.5, r = phase === 'ended' ? 330 : 420;
     camera.position.set(Math.sin(a) * r, 95 + Math.sin(t * 0.1) * 18, Math.cos(a) * r);
     camera.lookAt(0, 60, 0);
@@ -512,12 +619,16 @@ function frame() {
     if (!dragging) cam.orbit *= Math.exp(-dt * 1.6);   // look-around offset eases back behind the hero
     let dy = player.facing + Math.PI + cam.orbit - cam.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
     cam.yaw += dy * Math.min(1, dt * 6);
-    camTarget.set(player.pos.x, player.pos.y + 15, player.pos.z);
-    const cx = camTarget.x + Math.sin(cam.yaw) * Math.cos(cam.pitch) * cam.dist;
-    const cz = camTarget.z + Math.cos(cam.yaw) * Math.cos(cam.pitch) * cam.dist;
-    const cy = Math.max(camTarget.y + Math.sin(cam.pitch) * cam.dist, groundAt(cx, cz) + 2.5);
-    camera.position.lerp(camWant.set(cx, cy, cz), Math.min(1, dt * 8));
-    camera.lookAt(camTarget);
+    const fight = phase === 'fight', dist = fight ? Math.max(cam.dist, 72) : cam.dist;
+    camTarget.set(player.pos.x, player.pos.y + (fight ? 22 : 15), player.pos.z);
+    const cx = camTarget.x + Math.sin(cam.yaw) * Math.cos(cam.pitch) * dist;
+    const cz = camTarget.z + Math.cos(cam.yaw) * Math.cos(cam.pitch) * dist;
+    let cy = Math.max(camTarget.y + Math.sin(cam.pitch) * dist, groundAt(cx, cz) + 2.5);
+    if (fight) {   // keep the fight camera inside the arena
+      const ax = cx - ARENA.x, az = cz - ARENA.z, ar = Math.hypot(ax, az), lim = ARENA.r - 8;
+      if (ar > lim) { camWant.set(ARENA.x + ax / ar * lim, cy + (ar - lim) * 0.4, ARENA.z + az / ar * lim); camera.position.lerp(camWant, Math.min(1, dt * 8)); camera.lookAt(camTarget); cy = null; }
+    }
+    if (cy !== null) { camera.position.lerp(camWant.set(cx, cy, cz), Math.min(1, dt * 8)); camera.lookAt(camTarget); }
   }
 
   const hour = state ? worldHour() % 24 : 17.3;
@@ -532,7 +643,7 @@ showTitle();
 frame();
 // debugging helpers for the browser console
 window.__game = {
-  get state() { return state; }, get phase() { return phase; }, endGame, startGame, story,
+  get state() { return state; }, get phase() { return phase; }, endGame, startGame, story, startFight, combat, cinema,
   teleport(x, z) { player.pos.set(x, groundAt(x, z), z); },
   view(orbit) { cam.orbit = orbit; cam.yaw = player.facing + Math.PI + orbit; dragging = true; },
   look(yaw, pitch, dist) { player.facing = yaw + Math.PI; cam.yaw = yaw; if (pitch !== undefined) cam.pitch = pitch; if (dist !== undefined) cam.dist = dist; },

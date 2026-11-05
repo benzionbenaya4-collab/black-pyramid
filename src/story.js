@@ -67,12 +67,13 @@ export function defaultFlags() {
 }
 
 // ================================================================ dialogue box
-function createDialog() {
+function createDialog(hooks = {}) {
   const box = $('dialog'), nameEl = $('dlg-name'), textEl = $('dlg-text'), choicesEl = $('dlg-choices'), hint = $('dlg-hint');
   let cur = null, depth = 0;
   function say(sp, text, choices = null) {
     return new Promise((resolve) => {
       const s = SPEAKERS[sp];
+      hooks.onSay?.(sp);
       box.classList.remove('hidden'); box.style.setProperty('--sp', s.color);
       nameEl.textContent = s.name; textEl.textContent = ''; choicesEl.innerHTML = ''; hint.classList.add('hidden');
       cur = { full: text, shown: 0, resolve, choices };
@@ -100,7 +101,11 @@ function createDialog() {
     textEl.textContent = cur.full.slice(0, Math.floor(cur.shown));
     if (cur.shown >= cur.full.length) revealChoices();
   }
-  async function run(fn) { depth++; try { await fn(); } finally { depth--; if (!depth) box.classList.add('hidden'); } }
+  async function run(fn) {
+    if (!depth) hooks.onBegin?.();
+    depth++;
+    try { await fn(); } finally { depth--; if (!depth) { box.classList.add('hidden'); hooks.onEnd?.(); } }
+  }
   box.addEventListener('click', advance);
   return { say, advance, choose, update, run, get busy() { return depth > 0; }, close() { box.classList.add('hidden'); } };
 }
@@ -218,7 +223,21 @@ function buildStone(color) {
 // ================================================================ the story controller
 export function createStory(ctx) {
   const { scene, world, golem, getState, toast, hour, hoursLeft, endGame, openGateChoice, elapsed, puff } = ctx;
-  const dialog = createDialog();
+  let pendingNpc = null, speaking = null;
+  const dialog = createDialog({
+    onSay: (sp) => { speaking = sp; ctx.cinema.speaker(sp); },
+    onBegin: () => { ctx.cinema.beginTalk(pendingNpc); },
+    onEnd: () => { pendingNpc = null; speaking = null; ctx.cinema.endTalk(); },
+  });
+  const NPC_FRAME = {
+    nefira: { h: 12, stand: 26 }, tamun: { h: 6, stand: 15 }, keeper: { h: 14, stand: 30 }, yasif: { h: 5, stand: 15 }, gate: { h: 22, stand: 10 },
+  };
+  /** run a conversation with a character: the hero walks up, the camera frames the speakers */
+  function talkTo(key, fn) {
+    const p = key === 'gate' ? PYR.GATE : NPC_POS[key];
+    pendingNpc = { npc: new THREE.Vector3(p.x, groundAt(p.x, p.z), p.z), ...NPC_FRAME[key], key };
+    dialog.run(fn);
+  }
   const F = () => getState().f;
   const say = dialog.say;
   const log = (text) => { const f = F(); if (!f.log.includes(text)) f.log.push(text); };
@@ -451,11 +470,11 @@ export function createStory(ctx) {
   // ================================================================ interactables
   const items = [];
   const add = (o) => items.push(o);
-  add({ pos: () => NPC_POS.nefira, r: 16, label: 'לדבר עם נפירה', on: () => true, act: () => dialog.run(sceneNefira) });
-  add({ pos: () => NPC_POS.tamun, r: 13, label: 'לדבר עם תאמון', on: () => F().metNefira, act: () => dialog.run(sceneTamun) });
-  add({ pos: () => NPC_POS.keeper, r: 20, label: 'להעיר את שומר העצמות', on: () => F().metTamun, act: () => dialog.run(sceneKeeper) });
-  add({ pos: () => NPC_POS.yasif, r: 12, label: 'לדבר עם יאסיף ולינה', on: () => S().caravan, act: () => dialog.run(F().metYasif ? sceneYasifAgain : sceneRescue) });
-  add({ pos: () => PYR.GATE, r: 14, label: 'לגשת לשער הפירמידה', on: () => true, act: () => dialog.run(sceneGate) });
+  add({ pos: () => NPC_POS.nefira, r: 16, label: 'לדבר עם נפירה', on: () => true, act: () => talkTo('nefira', sceneNefira) });
+  add({ pos: () => NPC_POS.tamun, r: 13, label: 'לדבר עם תאמון', on: () => F().metNefira, act: () => talkTo('tamun', sceneTamun) });
+  add({ pos: () => NPC_POS.keeper, r: 20, label: 'להעיר את שומר העצמות', on: () => F().metTamun, act: () => talkTo('keeper', sceneKeeper) });
+  add({ pos: () => NPC_POS.yasif, r: 12, label: 'לדבר עם יאסיף ולינה', on: () => S().caravan, act: () => talkTo('yasif', F().metYasif ? sceneYasifAgain : sceneRescue) });
+  add({ pos: () => PYR.GATE, r: 14, label: 'לגשת לשער הפירמידה', on: () => true, act: () => talkTo('gate', sceneGate) });
   tablets.forEach((t, i) => add({ pos: () => t.g.position, r: 9, label: 'לקחת את לוח הזהב', on: () => F().metTamun && !F().tablets[i], act: () => {
     F().tablets[i] = true; t.g.visible = false; puff(t.x, groundAt(t.x, t.z) + 3, t.z, 30, 1.5);
     const got = F().tablets.filter(Boolean).length;
@@ -505,7 +524,7 @@ export function createStory(ctx) {
   } }));
   add({ hold: 12, pos: () => new THREE.Vector3(CAMP.x, 0, CAMP.z), r: 40, label: 'החזק E כדי לפזר את הסופה ולחלץ את השיירה', on: () => !S().caravan, done: () => {
     S().caravan = true; world.camp.rescue();
-    dialog.run(sceneRescue);
+    talkTo('yasif', sceneRescue);
   } });
 
   function takeShard(i) {
@@ -582,6 +601,15 @@ export function createStory(ctx) {
     const kOn = f.metTamun && !f.riddles;
     keeper.flames.forEach((fl) => { fl.visible = kOn || f.riddles; });
     lina.position.y = yp.y + (S().caravan ? Math.abs(Math.sin(t * 3)) * 0.6 : 0);
+    const face = (obj, k) => { const want = Math.atan2(playerPos.x - obj.position.x, playerPos.z - obj.position.z); let d = want - obj.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); obj.rotation.y += d * Math.min(1, dt * k); };
+    if (dialog.busy && pendingNpc) {
+      if (pendingNpc.key === 'tamun') face(tamun, 4);
+      if (pendingNpc.key === 'keeper') face(keeper.g, 2);
+      if (pendingNpc.key === 'yasif') { face(yasif, 4); face(lina, 4); }
+    }
+    const talkBob = (obj, who, base) => { obj.scale.y = base * (speaking === who ? 1 + Math.abs(Math.sin(t * 9)) * 0.035 : 1); };
+    talkBob(tamun, 'tamun', 1.5); talkBob(yasif, 'yasif', 1.4); talkBob(lina, 'lina', 0.95);
+    if (speaking === 'keeper') keeper.g.rotation.x = Math.sin(t * 8) * 0.06; else keeper.g.rotation.x = 0;
     tablets.forEach((tb) => { if (tb.g.visible) tb.g.children[0].rotation.y = Math.sin(t * 0.5) * 0.2; });
     scarabs.forEach((s, i) => { s.g.rotation.y = t * 0.8 + i; s.g.position.y = groundAt(s.x, s.z) + 2 + Math.sin(t * 2 + i) * 0.4; });
     mirrors.forEach((m, k) => { m.g.rotation.y = t * 0.6 + k; m.g.rotation.x = f.mirrors[k] ? 0.3 : 0; });

@@ -140,6 +140,34 @@ button.ghost { background: transparent; color: #f6e7c8; border-color: #8a6a3a; }
   #btn-design { top: auto; bottom: 245px; left: 8px; }
 }
 
+/* cinematics */
+#letterbox .bar { position: fixed; left: 0; right: 0; height: 0; background: #000; z-index: 5; transition: height .6s ease; pointer-events: none; }
+#letterbox .bar.top { top: 0; } #letterbox .bar.bottom { bottom: 0; }
+#letterbox.on .bar { height: 13vh; }
+body.cine #hud > :not(#dialog):not(#toast) { opacity: 0; pointer-events: none; transition: opacity .4s; }
+#cine-caption { position: fixed; left: 50%; bottom: 2.4vh; transform: translateX(-50%); z-index: 6; width: min(900px, calc(100vw - 32px));
+  text-align: center; font-size: 19px; line-height: 1.5; color: #ffe9bf; text-shadow: 0 2px 8px #000; pointer-events: none; }
+#cine-skip { position: fixed; top: 2vh; left: 16px; z-index: 7; font-size: 14px; padding: 6px 14px; }
+body.cine #dialog { bottom: 12vh; z-index: 6; }
+/* combat */
+#bossbar { position: absolute; top: 104px; left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); text-align: center; }
+#bossbar .name { color: #ff8a9a; font-weight: bold; text-shadow: 0 0 10px #ff2a4a; margin-bottom: 4px; }
+#bossbar .track, #hpbar .track { height: 14px; background: rgba(0,0,0,.6); border: 1px solid #8a2cff; border-radius: 8px; overflow: hidden; }
+#bossbar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff2a4a, #8a2cff); transition: width .15s; }
+#hpbar { position: absolute; bottom: 44px; right: 16px; width: 300px; }
+#hpbar .name { color: #ffe39a; font-weight: bold; margin-bottom: 4px; }
+#hpbar .track { border-color: #ffcc55; }
+#hpbar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ffd36a, #3fe6ff); transition: width .15s; }
+#hpbar .keys { font-size: 12px; opacity: .85; margin-top: 4px; }
+#hurt { position: fixed; inset: 0; pointer-events: none; z-index: 4; opacity: 0; box-shadow: inset 0 0 120px 40px rgba(255, 20, 40, .7); }
+#hurt.on { animation: hurt .5s ease-out; }
+@keyframes hurt { from { opacity: 1; } to { opacity: 0; } }
+#boss-shout { position: fixed; top: 22vh; left: 50%; transform: translateX(-50%); z-index: 6; font-size: 26px; font-weight: bold; color: #ff6a7a;
+  text-shadow: 0 0 14px #ff1a3a, 0 2px 6px #000; text-align: center; width: min(900px, calc(100vw - 32px)); pointer-events: none; }
+#tbtns .fight-only { display: none; }
+body.fight #tbtns .fight-only { display: block; }
+@media (max-width: 700px) { #hpbar { width: calc(100vw - 32px); bottom: 210px; } #cine-caption { font-size: 16px; } #boss-shout { font-size: 19px; } }
+
 </style>
   <script type="importmap">
   {
@@ -152,6 +180,13 @@ button.ghost { background: transparent; color: #f6e7c8; border-color: #8a6a3a; }
 
 <script>document.documentElement.dir = 'rtl'; document.documentElement.lang = 'he';</script>
 <div id="app"></div>
+
+  <!-- cinematic layer -->
+  <div id="letterbox"><div class="bar top"></div><div class="bar bottom"></div></div>
+  <div id="cine-caption" class="hidden"></div>
+  <button id="cine-skip" class="hidden ghost" type="button">דלג ⏭</button>
+  <div id="hurt"></div>
+  <div id="boss-shout" class="hidden"></div>
 
   <!-- HUD -->
   <div id="hud" class="hidden">
@@ -166,12 +201,19 @@ button.ghost { background: transparent; color: #f6e7c8; border-color: #8a6a3a; }
     <div id="prompt" class="hidden"></div>
     <div id="progress" class="hidden"><div id="progress-bar"></div></div>
     <div id="toast" class="hidden"></div>
+    <div id="bossbar" class="hidden"><div class="name">צל סת'אר, מלך הליקוי</div><div class="track"><div id="bossbar-fill"></div></div></div>
+    <div id="hpbar" class="hidden">
+      <div class="name">חארו <span id="hp-text">100</span></div><div class="track"><div id="hpbar-fill"></div></div>
+      <div class="keys">F / לחיצה: קרן שמש · <span id="burst-cd">R: מוכן</span> · רווח: קפוץ מעל גלי ההלם</div>
+    </div>
     <div id="touch" class="hidden">
       <div id="joy"><div id="joy-knob"></div></div>
       <div id="tbtns">
         <button id="t-e" type="button">E</button>
         <button id="t-jump" type="button">⤒</button>
         <button id="t-run" type="button">ריצה</button>
+        <button id="t-fire" type="button" class="fight-only">☀</button>
+        <button id="t-burst" type="button" class="fight-only">✸</button>
       </div>
     </div>
     <button id="btn-journal" type="button">📜 יומן (J)</button>
