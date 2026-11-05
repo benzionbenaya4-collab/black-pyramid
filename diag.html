@@ -14,11 +14,14 @@
   td:first-child { width: 40%; }
   .ok { color: var(--ok); font-weight: bold; } .bad { color: var(--bad); font-weight: bold; }
   .ltr { direction: ltr; text-align: left; font-size: 17px; word-break: break-all; }
-  canvas { width: 160px; height: 90px; border: 1px solid #8a6a3a; margin-left: 10px; vertical-align: middle; background: #000; }
+  #views canvas { width: 120px; height: 68px; border: 1px solid #8a6a3a; margin-left: 10px; vertical-align: middle; background: #000; }
   button { font: inherit; padding: 10px 20px; border-radius: 10px; border: 2px solid var(--gold); background: #2a1806; color: var(--fg); margin: 6px 0 6px 10px; }
   button:focus { outline: 4px solid var(--gold); }
   a { color: var(--gold); }
 </style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
 </head>
 <body>
 <main>
@@ -26,6 +29,11 @@
   <p>הדף בודק מה הדפדפן הזה מסוגל להציג. צלמו את כל המסך ושלחו.</p>
   <table id="out"><tbody></tbody></table>
   <div id="views"></div>
+  <h1 style="margin-top:24px">בדיקה מתקדמת</h1>
+  <p>מפעילה את האפקטים של המשחק אחד אחרי השני, ובודקת איפה בדיוק האקס בוקס נתקע. זה לוקח בערך דקה. בשלב האחרון הבדיקה ממלאת את כל המסך לכמה שניות. אם המסך נהיה לבן או נתקע, סגרו את Edge, פתחו את הדף הזה שוב, וצלמו: יופיע כתוב באיזה שלב זה קרס.</p>
+  <p><button id="run" type="button">▶ הפעל בדיקה מתקדמת</button></p>
+  <table id="adv"><tbody></tbody></table>
+  <div id="adv-view"></div>
   <p>
     <button id="reset" type="button">איפוס הגדרות הגרפיקה של המשחק</button>
     <a href="./">חזרה למשחק</a>
@@ -96,5 +104,6 @@
   document.getElementById('reset').focus({ preventScroll: true }); scrollTo(0, 0);
 })();
 </script>
+<script type="module" src="src/diag-gpu.js"></script>
 </body>
 </html>
