@@ -26,10 +26,10 @@ VOICES = {
 }
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('--limit', type=int, default=0); args = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument('--limit', type=int, default=0); ap.add_argument('--lines', default=str(ROOT / 'tools' / 'lines.json')); args = ap.parse_args()
     import torch, soundfile as sf
     from transformers import VitsModel, AutoTokenizer
-    lines = json.loads((ROOT / 'tools' / 'lines.json').read_text(encoding='utf-8'))
+    lines = json.loads(pathlib.Path(args.lines).read_text(encoding='utf-8'))
     if args.limit: lines = lines[:args.limit]
     out = ROOT / 'audio'; out.mkdir(exist_ok=True)
     tok = AutoTokenizer.from_pretrained(MODEL); model = VitsModel.from_pretrained(MODEL)
