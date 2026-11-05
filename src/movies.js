@@ -15,7 +15,7 @@ import { buildNefira, buildHuman, buildTamunCamp, buildKeeper, buildTablet, buil
 import { CHAPTERS, lineId } from './screenplay.js';
 import { EXTRA, EXTRA2 } from './screenplay-extra.js';
 import { MAT } from './util.js';
-import { quality, createAutoRes, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
+import { watchContext, createRenderGuard, quality, createAutoRes, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 const $ = (id) => document.getElementById(id);
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -36,7 +36,8 @@ const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.8, 70
 const canHalf = Q.halfFloat && renderer.capabilities.isWebGL2 && !!renderer.extensions.get('EXT_color_buffer_float');
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: Q.msaa, type: canHalf ? THREE.HalfFloatType : THREE.UnsignedByteType }));
 composer.addPass(new RenderPass(scene, camera));
-if (Q.bloom) composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.6, 0.45, 1.0));
+const bloom = Q.bloom ? new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.6, 0.45, 1.0) : null;
+if (bloom) composer.addPass(bloom);
 composer.addPass(new OutputPass());
 const PAINT_R = Q.painter || 1;
 const painter = new ShaderPass({
@@ -84,6 +85,16 @@ addEventListener('resize', resize);
 resize();
 // keeps the game smooth on every device: lowers/raises the render resolution by itself
 const autoRes = createAutoRes(Q, (r) => { renderer.setPixelRatio(r); resize(); });
+// if this device draws a white / broken picture, effects are switched off one at a time (and remembered)
+watchContext(renderer);
+let useComposer = true;
+const renderGuard = createRenderGuard(renderer, [
+  () => { painter.enabled = false; },
+  () => { composer.reset(new THREE.WebGLRenderTarget(1, 1, { type: THREE.UnsignedByteType })); },
+  () => { if (bloom) bloom.enabled = false; },
+  () => { useComposer = false; },
+  () => { renderer.shadowMap.enabled = false; scene.traverse((o) => { if (o.material) [].concat(o.material).forEach((mt) => { mt.needsUpdate = true; }); }); },
+], 'film');
 const hemi = new THREE.HemisphereLight(0xa8d8ff, 0xe0a070, 0.6);
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
 sun.castShadow = true; sun.shadow.mapSize.set(Q.shadow, Q.shadow);
@@ -550,7 +561,8 @@ function frame() {
   $('time').textContent = running ? `${fmt(watched)} / ${fmt(TOTAL)}` : '';
   $('progress-fill').style.width = `${Math.min(100, (watched / TOTAL) * 100)}%`;
   updateSky(shot.fns ? hero.pos : new THREE.Vector3());
-  composer.render();
+  if (useComposer) composer.render(); else renderer.render(scene, camera);
+  renderGuard();
 }
 frame();
 window.__film = { play: playFilm, skip: skipBeat, SCENES, TOTAL, get voices() { return heVoices.map((v) => v.name); }, get watched() { return watched; } };

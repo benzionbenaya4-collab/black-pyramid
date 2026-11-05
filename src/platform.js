@@ -1,5 +1,7 @@
 // platform.js — devices: phones, consoles (Xbox Edge), quality levels, gamepads, on-screen errors.
 const UA = navigator.userAgent || '';
+// Xbox Edge: deliver the controller to the game (no mouse-pointer emulation). Must be set as early as possible.
+try { if ('gamepadInputEmulation' in navigator) navigator.gamepadInputEmulation = 'gamepad'; } catch { /* other browsers */ }
 export const isXbox = /Xbox/i.test(UA);
 export const isPlayStation = /PlayStation/i.test(UA);
 export const isSwitch = /Nintendo/i.test(UA);
@@ -12,13 +14,43 @@ export const isMobile = !isConsole && (/Android|iPhone|iPad|iPod|Mobile/i.test(U
 export const device = isConsole ? 'console' : isMobile ? 'phone' : 'pc';
 const PROFILES = {
   pc: { pixelRatio: 1.75, minRatio: 0.85, msaa: 4, halfFloat: true, painter: 3, bloom: true, shadow: 2048, groundSeg: 360 },
-  console: { pixelRatio: 1, minRatio: 0.6, msaa: 0, halfFloat: true, painter: 2, bloom: true, shadow: 2048, groundSeg: 300 },
+  console: { pixelRatio: 1, minRatio: 0.6, msaa: 0, halfFloat: false, painter: 2, bloom: true, shadow: 2048, groundSeg: 300 },
   phone: { pixelRatio: 1.5, minRatio: 0.6, msaa: 0, halfFloat: true, painter: 2, bloom: true, shadow: 1024, groundSeg: 240 },
 };
+const MEM_KEY = `blackPyramid.lowMem.${device}`;
+export function lowMem() { try { return +localStorage.getItem(MEM_KEY) || 0; } catch { return 0; } }
 export function quality() {
   try { localStorage.removeItem('blackPyramid.quality'); } catch { /* old manual setting is no longer used */ }
-  const p = PROFILES[device];
-  return { level: device, ...p, pixelRatio: Math.min(window.devicePixelRatio || 1, p.pixelRatio) };
+  const p = { ...PROFILES[device] }, lm = lowMem();
+  // set automatically only if this device's 3D engine crashed before (see watchContext)
+  if (lm >= 1) Object.assign(p, { pixelRatio: Math.min(p.pixelRatio, 1), msaa: 0, halfFloat: false, shadow: 1024, groundSeg: Math.min(p.groundSeg, 220) });
+  if (lm >= 2) Object.assign(p, { pixelRatio: 0.75, minRatio: 0.5, painter: 0, bloom: false, shadow: 512, groundSeg: 160 });
+  return { level: device, lowMem: lm, ...p, pixelRatio: Math.min(window.devicePixelRatio || 1, p.pixelRatio) };
+}
+function gpuInfo(gl) {
+  try {
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    return `GPU: ${dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)} · maxTex ${gl.getParameter(gl.MAX_TEXTURE_SIZE)} · ${innerWidth}x${innerHeight}@${devicePixelRatio}`;
+  } catch { return 'GPU: ?'; }
+}
+/** retry with lighter graphics (at most twice), then show the technical details on screen */
+export function lighterAndReload(reason, gl) {
+  const lm = lowMem();
+  if (lm < 2) {
+    try { localStorage.setItem(MEM_KEY, String(lm + 1)); } catch { /* no storage */ }
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;z-index:98;display:flex;align-items:center;justify-content:center;background:#140a02;color:#f6e7c8;font:22px/1.6 Arial,sans-serif;direction:rtl;text-align:center;padding:24px';
+    el.textContent = 'מתאים את הגרפיקה למכשיר הזה… המשחק ייטען מחדש בעוד רגע.';
+    document.body.appendChild(el);
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    window.dispatchEvent(new ErrorEvent('error', { message: `${reason} (after lighter graphics). ${gpuInfo(gl)}` }));
+  }
+}
+/** the 3D engine (WebGL) can crash on consoles / phones, e.g. out of graphics memory → retry lighter */
+export function watchContext(renderer) {
+  const gl = renderer.getContext();
+  renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); lighterAndReload('WebGL context lost', gl); });
 }
 /** Dynamic resolution: call tick() every frame; apply(ratio) is called when the render scale should change. */
 export function createAutoRes(Q, apply) {
@@ -34,6 +66,43 @@ export function createAutoRes(Q, apply) {
     if (ms > 22) nr = Math.max(Q.minRatio, r - (ms > 34 ? 0.2 : 0.1));
     else if (ms < 15) nr = Math.min(Q.pixelRatio, r + 0.05);
     if (Math.abs(nr - r) > 0.01) { r = nr; apply(r); }
+  };
+}
+
+// ================================================================ broken-picture guard
+// Some console / phone GPUs draw a plain white (or flat) picture with certain effects. This samples the
+// rendered frame now and then; if it looks broken it switches the next effect off, and remembers it.
+export function createRenderGuard(renderer, steps, name) {
+  const KEY = `blackPyramid.safeLevel.${name}.${device}`;
+  let level = 0;
+  try { level = Math.min(steps.length, +localStorage.getItem(KEY) || 0); } catch { /* no storage */ }
+  for (let i = 0; i < level; i++) steps[i]();
+  const gl = renderer.getContext(), px = new Uint8Array(4);
+  let frame = 0, strikes = 0, told = false;
+  return function check() {
+    frame++;
+    if (frame < 40 || frame % 30 || gl.isContextLost()) return;
+    renderer.setRenderTarget(null);
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    let white = 0, n = 0, lo = [255, 255, 255], hi = [0, 0, 0];
+    for (let j = 1; j <= 5; j++) for (let i = 1; i <= 5; i++) {
+      gl.readPixels(Math.floor(w * i / 6), Math.floor(h * j / 6), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      n++; if (Math.min(px[0], px[1], px[2]) > 232) white++;
+      for (let c = 0; c < 3; c++) { lo[c] = Math.min(lo[c], px[c]); hi[c] = Math.max(hi[c], px[c]); }
+    }
+    const flat = hi[0] - lo[0] < 4 && hi[1] - lo[1] < 4 && hi[2] - lo[2] < 4;
+    if (white < n * 0.85 && !flat) { strikes = 0; return; }
+    if (++strikes < 2) return;
+    strikes = 0;
+    if (level < steps.length) {
+      steps[level](); level++;
+      try { localStorage.setItem(KEY, String(level)); } catch { /* no storage */ }
+      console.warn(`render guard: picture looked broken, safe level ${level}`);
+    } else if (!told) {
+      told = true;
+      try { localStorage.setItem(KEY, '0'); } catch { /* no storage */ }   // effects back on, lighter memory instead
+      lighterAndReload(`Picture still ${white >= n * 0.85 ? 'white' : 'flat'} after all fallbacks`, gl);
+    }
   };
 }
 
@@ -81,7 +150,6 @@ export function setupMobile() {
 // ================================================================ gamepads (Xbox controller and others, "standard" mapping)
 export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, LS: 10, RS: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
 export function createGamepad() {
-  try { if ('gamepadInputEmulation' in navigator) navigator.gamepadInputEmulation = 'gamepad'; } catch { /* Xbox Edge only */ }
   const st = { connected: false, lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, down: new Set(), pressed: new Set(), used: false };
   let prev = new Set();
   const dz = (v) => (Math.abs(v) < 0.18 ? 0 : (v - Math.sign(v) * 0.18) / 0.82);
@@ -126,6 +194,7 @@ export function createMenuNav(containers) {
     idx = Math.min(idx, list.length - 1);
     list.forEach((b, i) => b.classList.toggle('pad-focus', i === idx));
     const cur = list[idx];
+    if (dir) cur.scrollIntoView?.({ block: 'nearest' });
     if (pad.hit(BTN.A)) {
       if (cur.type === 'checkbox') { cur.checked = !cur.checked; cur.dispatchEvent(new Event('change')); }
       else cur.click();

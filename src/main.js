@@ -13,8 +13,8 @@ import { createCinema } from './cinema.js';
 import { createCombat, ARENA } from './combat.js';
 import { createStory, defaultFlags, GATE_HOUR } from './story.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
-import { createControls, ACTIONS, keyName, padName } from './controls.js';
-import { quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
+import { createControls, ACTIONS, keyName, padName, MOVE_OPTS, LOOK_OPTS, SPEED_OPTS } from './controls.js';
+import { watchContext, createRenderGuard, quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 // ================================================================ constants
 const REAL_DURATION = 2 * 60 * 60;   // 2 real hours of play (seconds)
@@ -55,7 +55,8 @@ const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.8, 70
 const canHalf = Q.halfFloat && renderer.capabilities.isWebGL2 && !!renderer.extensions.get('EXT_color_buffer_float');
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: Q.msaa, type: canHalf ? THREE.HalfFloatType : THREE.UnsignedByteType }));
 composer.addPass(new RenderPass(scene, camera));
-if (Q.bloom) composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.6, 0.45, 1.0));
+const bloom = Q.bloom ? new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.6, 0.45, 1.0) : null;
+if (bloom) composer.addPass(bloom);
 composer.addPass(new OutputPass());
 // painterly pass (Kuwahara filter): flattens small details into soft brush-like patches of colour
 const PAINT_R = Q.painter || 1;
@@ -111,6 +112,16 @@ addEventListener('resize', resize);
 resize();
 // keeps the game smooth on every device: lowers/raises the render resolution by itself
 const autoRes = createAutoRes(Q, (r) => { renderer.setPixelRatio(r); resize(); });
+// if this device draws a white / broken picture, effects are switched off one at a time (and remembered)
+watchContext(renderer);
+let useComposer = true;
+const renderGuard = createRenderGuard(renderer, [
+  () => { painter.enabled = false; },
+  () => { composer.reset(new THREE.WebGLRenderTarget(1, 1, { type: THREE.UnsignedByteType })); },
+  () => { if (bloom) bloom.enabled = false; },
+  () => { useComposer = false; },
+  () => { renderer.shadowMap.enabled = false; scene.traverse((o) => { if (o.material) [].concat(o.material).forEach((mt) => { mt.needsUpdate = true; }); }); },
+], 'game');
 
 const hemi = new THREE.HemisphereLight(0xa8d8ff, 0xe0a070, 0.6);
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
@@ -214,6 +225,7 @@ function pressAction() {
   if (story.busy) story.dialog.advance(); else story.interact();
 }
 const ctl = createControls();
+if (isConsole) document.body.classList.add('console');   // controls screen shows only the controller column
 addEventListener('keydown', (e) => {
   if (editor.isOpen) return;   // typing in the designer must not move the hero
   if (ctlWait) { e.preventDefault(); if (e.code !== 'Escape' && ctlWait.kind === 'key') ctl.setKey(ctlWait.id, e.code); ctlWait = null; renderControls(); return; }
@@ -523,7 +535,7 @@ function updatePlaying(dt) {
     if (keys.KeyD || keys.ArrowRight) turnIn -= 1;
     if (keys.KeyA || keys.ArrowLeft) turnIn += 1;
     if (touch.active) { fwdIn += -touch.y; turnIn += -touch.x; }
-    if (pad.connected) { fwdIn += -pad.ly; turnIn += -pad.lx; }
+    if (pad.connected) { const [mx, my] = ctl.moveAxes(pad); fwdIn += -my; turnIn += -mx; }
   }
   fwdIn = THREE.MathUtils.clamp(fwdIn, -1, 1); turnIn = THREE.MathUtils.clamp(turnIn, -1, 1);
   const running = (keys.ShiftLeft || keys.ShiftRight || touch.run || pad.isDown(ctl.pad('run')) || pad.isDown(BTN.LS)) && fwdIn > 0;
@@ -618,7 +630,7 @@ function renderControls() {
     kb.classList.toggle('wait', !!(ctlWait && ctlWait.id === a.id && ctlWait.kind === 'key'));
     kb.onclick = () => { ctlWait = { id: a.id, kind: 'key' }; renderControls(); };
     tr.children[1].appendChild(kb);
-    if (a.pad == null) { tr.children[2].textContent = padName(null); tr.children[2].className = 'fixed'; }
+    if (a.pad == null) { tr.children[2].textContent = MOVE_OPTS[ctl.padMove]; tr.children[2].className = 'fixed'; }
     else {
       const pb = document.createElement('button'); pb.type = 'button';
       const w = ctlWait && ctlWait.id === a.id && ctlWait.kind === 'pad';
@@ -628,6 +640,10 @@ function renderControls() {
     }
     tb.appendChild(tr);
   }
+  for (const btn of document.querySelectorAll('#ctl-pad [data-cycle]')) {
+    const n = btn.dataset.cycle;
+    btn.textContent = n === 'padMove' ? MOVE_OPTS[ctl.padMove] : n === 'padLook' ? LOOK_OPTS[ctl.padLook] : n === 'invertY' ? (ctl.invertY ? 'פועל' : 'כבוי') : SPEED_OPTS[ctl.lookSpeed];
+  }
   $('ctl-wait').classList.toggle('hidden', !ctlWait);
   $('ctl-wait').textContent = ctlWait ? (ctlWait.kind === 'key' ? 'לחץ עכשיו על המקש החדש במקלדת (Esc לביטול)' : 'לחץ עכשיו על הכפתור החדש בבקר') : '';
   updateHelp();
@@ -635,13 +651,14 @@ function renderControls() {
 function updateHelp() {
   const k = (id) => keyName(ctl.bind[id].key), p = (id) => padName(ctl.bind[id].pad).split(' ')[0];
   $('help').textContent = `${k('fwd')}/${k('back')}: הליכה קדימה ואחורה · ${k('left')}/${k('right')}: סיבוב · ${k('run')}: ריצה · ${k('jump')}: קפיצה · גרירת עכבר: הסתכלות מסביב · גלגלת: זום · ${k('action')}: דיבור ופעולה · ${k('journal')}: יומן`;
-  $('help-pad').textContent = `🎮 מקל שמאלי: הליכה וסיבוב · מקל ימני: מצלמה · ${p('action')}: פעולה ושיחה · ${p('jump')}: קפיצה · ${p('run')}: ריצה · ${p('shoot')}: קרן שמש · ${p('burst')}: גל אור · ${p('journal')}: יומן`;
+  $('help-pad').textContent = `🎮 ${MOVE_OPTS[ctl.padMove]}: הליכה וסיבוב · ${LOOK_OPTS[ctl.padLook]}: מצלמה · ${p('action')}: פעולה ושיחה · ${p('jump')}: קפיצה · ${p('run')}: ריצה · ${p('shoot')}: קרן שמש · ${p('burst')}: גל אור · ${p('journal')}: יומן · Menu: שליטה`;
 }
 function toggleControls(force) {
   const el = $('controls'), show = force ?? el.classList.contains('hidden');
   el.classList.toggle('hidden', !show); ctlWait = null;
   if (show) { $('ctl-size').value = ctl.touchSize; renderControls(); }
 }
+for (const btn of document.querySelectorAll('#ctl-pad [data-cycle]')) btn.addEventListener('click', () => { ctl.cycle(btn.dataset.cycle); renderControls(); });
 $('btn-controls').addEventListener('click', () => toggleControls(true));
 $('btn-controls-title').addEventListener('click', () => toggleControls(true));
 $('ctl-close').addEventListener('click', () => toggleControls(false));
@@ -668,15 +685,17 @@ function handlePad(dt) {
   }
   if (phase === 'playing') {
     if (pad.hit(ctl.pad('action'))) pressAction();
-    if (pad.hit(ctl.pad('journal')) || pad.hit(BTN.MENU)) toggleJournal();
+    if (pad.hit(ctl.pad('journal'))) toggleJournal();
+    if (pad.hit(BTN.MENU) && ctl.pad('journal') !== BTN.MENU) toggleControls(true);
   }
   if (phase === 'fight') {
     if (pad.isDown(ctl.pad('shoot'))) combat.shoot();
     if (pad.hit(ctl.pad('burst'))) combat.burst();
   }
-  if (pad.rx || pad.ry) {   // right stick: look around
-    cam.orbit -= pad.rx * dt * 2.4; dragging = true; padLook = 0.6;
-    cam.pitch = THREE.MathUtils.clamp(cam.pitch + pad.ry * dt * 1.2, 0.03, 1.25);
+  const [lx, ly] = ctl.lookAxes(pad);
+  if (lx || ly) {   // camera stick (chosen in the controls screen): look around
+    cam.orbit -= lx * dt * 2.4; dragging = true; padLook = 0.6;
+    cam.pitch = THREE.MathUtils.clamp(cam.pitch + ly * dt * 1.2, 0.03, 1.25);
   } else if (padLook > 0) { padLook -= dt; if (padLook <= 0) dragging = false; }
 }
 let padLook = 0, padE = false;
@@ -749,7 +768,8 @@ function frame() {
   updateSky(hour, doom, cinematic ? new THREE.Vector3() : player.pos);
   world.update(dt, t, { center: cinematic ? camera.position : player.pos, wind: 6 + doom * 30 });
 
-  composer.render();
+  if (useComposer) composer.render(); else renderer.render(scene, camera);
+  renderGuard();
 }
 
 showTitle();

@@ -13,7 +13,10 @@ export const ACTIONS = [
   { id: 'burst', name: 'גל אור (בקרב)', key: 'KeyR', pad: 3 },
 ];
 const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'L3 (לחיצה על מקל שמאלי)', 'R3 (לחיצה על מקל ימני)', '↑', '↓', '←', '→'];
-export function padName(i) { return i == null ? 'מקל שמאלי' : PAD_NAMES[i] || `כפתור ${i}`; }
+export const MOVE_OPTS = { left: 'מקל שמאלי', right: 'מקל ימני', dpad: 'חצים (D-pad)' };
+export const LOOK_OPTS = { right: 'מקל ימני', left: 'מקל שמאלי', none: 'כבוי' };
+export const SPEED_OPTS = { 0.5: 'איטית', 1: 'רגילה', 1.6: 'מהירה' };
+export function padName(i) { return i == null ? 'לפי הגדרת ההליכה' : PAD_NAMES[i] || `כפתור ${i}`; }
 export function keyName(code) {
   if (!code) return '—';
   const fixed = { Space: 'רווח', ShiftLeft: 'Shift', ShiftRight: 'Shift ימני', ControlLeft: 'Ctrl', ControlRight: 'Ctrl ימני', AltLeft: 'Alt', Enter: 'Enter', Tab: 'Tab',
@@ -35,6 +38,32 @@ export function createControls() {
   const ctl = {
     bind,
     touchSize: saved.touchSize || 1,
+    get padMove() { return saved.padMove || 'left'; },
+    get padLook() { return saved.padLook || 'right'; },
+    get invertY() { return !!saved.invertY; },
+    get lookSpeed() { return saved.lookSpeed || 1; },
+    /** cycle a controller option to its next value (buttons that cycle work well with a controller) */
+    cycle(name) {
+      const lists = { padMove: Object.keys(MOVE_OPTS), padLook: Object.keys(LOOK_OPTS), lookSpeed: Object.keys(SPEED_OPTS).map(Number) };
+      if (name === 'invertY') saved.invertY = !saved.invertY;
+      else { const l = lists[name], cur = ctl[name]; saved[name] = l[(l.indexOf(cur) + 1) % l.length]; }
+      // walking and camera can't share the same stick: move the camera to the other one
+      if (name === 'padMove' && ctl.padLook === ctl.padMove) saved.padLook = ctl.padMove === 'right' ? 'left' : 'right';
+      if (name === 'padLook' && ctl.padLook === ctl.padMove) saved.padMove = ctl.padLook === 'left' ? 'right' : 'left';
+      save();
+    },
+    /** stick / D-pad reading for walking and for the camera, following the player's choice */
+    moveAxes(gp) {
+      if (ctl.padMove === 'right') return [gp.rx, gp.ry];
+      if (ctl.padMove === 'dpad') return [(gp.isDown(15) ? 1 : 0) - (gp.isDown(14) ? 1 : 0), (gp.isDown(13) ? 1 : 0) - (gp.isDown(12) ? 1 : 0)];
+      return [gp.lx, gp.ly];
+    },
+    lookAxes(gp) {
+      const k = ctl.lookSpeed, iy = ctl.invertY ? -1 : 1;
+      if (ctl.padLook === 'none') return [0, 0];
+      const [x, y] = ctl.padLook === 'left' ? [gp.lx, gp.ly] : [gp.rx, gp.ry];
+      return [x * k, y * k * iy];
+    },
     /** physical key → the built-in key the game understands (so all game code keeps using the default names) */
     key(code) {
       for (const a of ACTIONS) if (bind[a.id].key === code) return a.key;

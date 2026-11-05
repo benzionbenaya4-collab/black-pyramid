@@ -148,9 +148,16 @@
   <div id="controls" class="screen hidden">
     <div class="panel controls">
       <h2>🎮 שליטה ומקשים</h2>
-      <p class="note">לחץ על מקש או על כפתור בטבלה, ואז לחץ על המקש החדש במקלדת או על הכפתור החדש בבקר. השינוי נשמר אוטומטית.</p>
+      <p class="note">בחר שורה ולחץ עליה (בבקר: חצים + A), ואז לחץ על המקש או הכפתור החדש. השינוי נשמר אוטומטית.</p>
       <table id="ctl-table"><thead><tr><th>פעולה</th><th>⌨ מקלדת</th><th>🎮 בקר</th></tr></thead><tbody></tbody></table>
-      <p class="note">מקל ימני בבקר / גרירה במסך: הזזת המצלמה.</p>
+      <h3 class="ctl-h">🎮 הגדרות בקר</h3>
+      <table id="ctl-pad"><tbody>
+        <tr><td>הליכה וסיבוב עם</td><td><button type="button" data-cycle="padMove"></button></td></tr>
+        <tr><td>הזזת המצלמה עם</td><td><button type="button" data-cycle="padLook"></button></td></tr>
+        <tr><td>היפוך מצלמה למעלה / למטה</td><td><button type="button" data-cycle="invertY"></button></td></tr>
+        <tr><td>מהירות המצלמה</td><td><button type="button" data-cycle="lookSpeed"></button></td></tr>
+      </tbody></table>
+      <p class="note">בבקר: כפתור <b>Menu</b> (☰) פותח את המסך הזה באמצע המשחק · <b>B</b> סוגר · במחשב/טלפון: גרירה במסך מזיזה את המצלמה.</p>
       <div id="ctl-touch">
         <label class="note">📱 גודל הכפתורים על המסך בטלפון: <input id="ctl-size" type="range" min="0.7" max="1.5" step="0.1"></label>
       </div>
