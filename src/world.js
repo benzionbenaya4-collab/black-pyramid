@@ -61,8 +61,8 @@ const WPOS_VERT = (sh) => {
 const HASH = 'float gh(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }\n';
 export const envUniforms = { uSun: { value: 1 } };
 
-function createGround() {
-  const size = 5200, seg = 360;
+function createGround(seg = 360) {
+  const size = 5200;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -936,9 +936,9 @@ function createDustPuffs() {
 }
 
 // ================================================================ assemble
-export function createWorld(scene) {
+export function createWorld(scene, opts = {}) {
   const dyn = { flagPoints: [], flames: [] };
-  scene.add(createGround());
+  scene.add(createGround(opts.groundSeg));
   scene.add(createPaving());
   const sky = createSky(); scene.add(sky.group); scene.add(sky.cloudMesh);
   const pyramid = createPyramidComplex(dyn); scene.add(pyramid.group);

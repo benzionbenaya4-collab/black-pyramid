@@ -13,6 +13,7 @@ import { createCinema } from './cinema.js';
 import { createCombat, ARENA } from './combat.js';
 import { createStory, defaultFlags, GATE_HOUR } from './story.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
+import { quality, qualityChoice, setQualityChoice, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 // ================================================================ constants
 const REAL_DURATION = 2 * 60 * 60;   // 2 real hours of play (seconds)
@@ -34,8 +35,11 @@ const store = {
 };
 
 // ================================================================ renderer / scene
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+const Q = quality();            // high on computers, lighter automatically on phones and consoles
+setupMobile();
+if (!checkWebGL()) throw new Error('WebGL is not available');
+const renderer = new THREE.WebGLRenderer({ antialias: Q.level !== 'low', powerPreference: 'high-performance' });
+renderer.setPixelRatio(Q.pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -47,12 +51,13 @@ scene.fog = new THREE.Fog(0xf3d3a0, 300, 2300);
 const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.8, 7000);
 
 // post-processing: multisampled (anti-aliased) HDR target → bloom → tone mapping → cinematic colour grade
-const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: 4, type: THREE.HalfFloatType }));
+const canHalf = Q.halfFloat && renderer.capabilities.isWebGL2 && !!renderer.extensions.get('EXT_color_buffer_float');
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: Q.msaa, type: canHalf ? THREE.HalfFloatType : THREE.UnsignedByteType }));
 composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6, 0.45, 1.0));
+if (Q.bloom) composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.6, 0.45, 1.0));
 composer.addPass(new OutputPass());
 // painterly pass (Kuwahara filter): flattens small details into soft brush-like patches of colour
-const PAINT_R = matchMedia('(pointer: coarse)').matches ? 2 : 3;
+const PAINT_R = Q.painter || 1;
 const painter = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(innerWidth, innerHeight) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -80,7 +85,7 @@ const painter = new ShaderPass({
       gl_FragColor = vec4(col, 1.0);
     }`,
 });
-composer.addPass(painter);
+if (Q.painter) composer.addPass(painter);
 composer.addPass(new ShaderPass({
   uniforms: { tDiffuse: { value: null } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -105,13 +110,13 @@ addEventListener('resize', () => {
 const hemi = new THREE.HemisphereLight(0xa8d8ff, 0xe0a070, 0.6);
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(Q.shadow, Q.shadow);
 Object.assign(sun.shadow.camera, { left: -170, right: 170, top: 170, bottom: -170, near: 1, far: 1400 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.4;
 scene.add(hemi, sun, sun.target);
 
 // ================================================================ world + hero
-const world = createWorld(scene);
+const world = createWorld(scene, { groundSeg: Q.groundSeg });
 const { pyramid, camp, sky } = world;
 scene.traverse((o) => {
   const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
@@ -161,9 +166,9 @@ function shardCount() { return state ? state.shards.filter(Boolean).length : 0; 
 // ================================================================ UI helpers
 let toastTimer = 0;
 function toast(msg, secs = 4.5) { $('toast').innerHTML = msg; $('toast').classList.remove('hidden'); toastTimer = secs; }
-const pad = (n) => String(Math.floor(n)).padStart(2, '0');
-function fmtHM(h) { const m = Math.floor(h * 60); return `${pad(m / 60)}:${pad(m % 60)}`; }
-function fmtReal(s) { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 3600)}:${pad((s % 3600) / 60)}:${pad(s % 60)}`; }
+const pad2 = (n) => String(Math.floor(n)).padStart(2, '0');
+function fmtHM(h) { const m = Math.floor(h * 60); return `${pad2(m / 60)}:${pad2(m % 60)}`; }
+function fmtReal(s) { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 3600)}:${pad2((s % 3600) / 60)}:${pad2(s % 60)}`; }
 function discovered() { return store.get(ENDINGS_KEY) || []; }
 
 // ================================================================ story
@@ -236,7 +241,7 @@ renderer.domElement.addEventListener('wheel', (e) => { cam.dist = THREE.MathUtil
 
 // touch controls: virtual joystick + buttons
 const touch = { x: 0, y: 0, active: false };
-if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) {
+if (!isConsole && (isMobile || matchMedia('(pointer: coarse)').matches)) {
   $('touch').classList.remove('hidden');
   const joy = $('joy'), knob = $('joy-knob');
   const setJoy = (e) => {
@@ -260,6 +265,8 @@ if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) {
   hold('t-burst', 'KeyR', () => combat.burst());
   $('t-run').addEventListener('pointerdown', (e) => { e.preventDefault(); keys.ShiftRight = !keys.ShiftRight; $('t-run').classList.toggle('on', !!keys.ShiftRight); });
 }
+$('quality').value = qualityChoice();
+$('quality').onchange = (e) => { setQualityChoice(e.target.value); location.reload(); };
 $('btn-journal').addEventListener('click', () => toggleJournal());
 $('btn-design').addEventListener('click', () => editor.open());
 $('btn-design-title').addEventListener('click', () => editor.open());
@@ -493,9 +500,10 @@ function updatePlaying(dt) {
     if (keys.KeyD || keys.ArrowRight) turnIn -= 1;
     if (keys.KeyA || keys.ArrowLeft) turnIn += 1;
     if (touch.active) { fwdIn += -touch.y; turnIn += -touch.x; }
+    if (pad.connected) { fwdIn += -pad.ly; turnIn += -pad.lx; }
   }
   fwdIn = THREE.MathUtils.clamp(fwdIn, -1, 1); turnIn = THREE.MathUtils.clamp(turnIn, -1, 1);
-  const running = (keys.ShiftLeft || keys.ShiftRight) && fwdIn > 0;
+  const running = (keys.ShiftLeft || keys.ShiftRight || pad.rt > 0.4 || pad.isDown(BTN.LS)) && fwdIn > 0;
   player.turn = THREE.MathUtils.damp(player.turn || 0, turnIn, 10, dt);
   player.facing += player.turn * TURN * (running ? 0.75 : 1) * dt;
   const target = fwdIn > 0 ? (running ? RUN : WALK) * fwdIn : fwdIn * WALK * 0.55;
@@ -504,7 +512,7 @@ function updatePlaying(dt) {
   player.pos.addScaledVector(fwd, player.speed * dt);
   resolveCollisions(player.pos);
   const g = groundAt(player.pos.x, player.pos.z);
-  if (canMove && keys.Space && player.grounded) { player.velY = 24; player.grounded = false; }
+  if (canMove && (keys.Space || pad.isDown(BTN.B)) && player.grounded) { player.velY = 24; player.grounded = false; }
   player.velY -= 60 * dt;
   player.pos.y += player.velY * dt;
   if (player.pos.y <= g) {
@@ -571,6 +579,38 @@ function drawMinimap() {
   mm.restore();
 }
 
+// ================================================================ controller (Xbox and others)
+const pad = createGamepad();
+const menuNav = createMenuNav(['#editor', '#journal', '#choice', '#ending', '#title', '#dlg-choices']);
+function handlePad(dt) {
+  pad.poll();
+  $('help-pad').classList.toggle('hidden', !pad.used); $('help').classList.toggle('hidden', pad.used);
+  $('pad-note').classList.toggle('hidden', !pad.connected);
+  if (!pad.connected) return;
+  const aHeld = pad.isDown(BTN.A) && phase === 'playing' && !story.busy;   // hold A = hold E (rescue, mirrors)
+  if (aHeld) { keys.KeyE = true; padE = true; } else if (padE) { keys.KeyE = false; padE = false; }
+  if (cinema.playing && (pad.hit(BTN.A) || pad.hit(BTN.B) || pad.hit(BTN.MENU))) { cinema.finish(); return; }
+  const dlgChoices = story.busy && $('dlg-choices').childElementCount > 0;
+  if (dlgChoices || !$('editor').classList.contains('hidden') || !$('journal').classList.contains('hidden') || ['title', 'choice', 'ended'].includes(phase)) {
+    if (pad.hit(BTN.B) && !$('journal').classList.contains('hidden')) { toggleJournal(false); return; }
+    if (pad.hit(BTN.B) && !$('editor').classList.contains('hidden')) { $('ed-cancel').click(); return; }
+    menuNav(pad, dt); return;
+  }
+  if (phase === 'playing') {
+    if (pad.hit(BTN.A)) pressAction();
+    if (pad.hit(BTN.VIEW) || pad.hit(BTN.MENU)) toggleJournal();
+  }
+  if (phase === 'fight') {
+    if (pad.isDown(BTN.X)) combat.shoot();
+    if (pad.hit(BTN.Y) || pad.hit(BTN.RB)) combat.burst();
+  }
+  if (pad.rx || pad.ry) {   // right stick: look around
+    cam.orbit -= pad.rx * dt * 2.4; dragging = true; padLook = 0.6;
+    cam.pitch = THREE.MathUtils.clamp(cam.pitch + pad.ry * dt * 1.2, 0.03, 1.25);
+  } else if (padLook > 0) { padLook -= dt; if (padLook <= 0) dragging = false; }
+}
+let padLook = 0, padE = false;
+
 // ================================================================ main loop
 const clock = new THREE.Clock();
 let t = 0, saveTimer = 0;
@@ -582,6 +622,7 @@ function frame() {
   const dt = Math.min(rawDt, 0.05);
   holdDtNow = Math.min(rawDt, 0.5);   // real time for hold-to-act and messages, even on slow machines
   t += dt;
+  handlePad(dt);
 
   if (phase === 'playing' || phase === 'fight') updatePlaying(dt);
   if (phase === 'fight') {
@@ -643,7 +684,7 @@ showTitle();
 frame();
 // debugging helpers for the browser console
 window.__game = {
-  get state() { return state; }, get phase() { return phase; }, endGame, startGame, story, startFight, combat, cinema,
+  get state() { return state; }, get phase() { return phase; }, get pos() { return [Math.round(player.pos.x), Math.round(player.pos.z)]; }, endGame, startGame, story, startFight, combat, cinema,
   teleport(x, z) { player.pos.set(x, groundAt(x, z), z); },
   view(orbit) { cam.orbit = orbit; cam.yaw = player.facing + Math.PI + orbit; dragging = true; },
   look(yaw, pitch, dist) { player.facing = yaw + Math.PI; cam.yaw = yaw; if (pitch !== undefined) cam.pitch = pitch; if (dist !== undefined) cam.dist = dist; },

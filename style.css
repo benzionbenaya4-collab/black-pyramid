@@ -167,3 +167,13 @@ body.fight #tbtns .fight-only { display: block; }
 
 .film-link { display: inline-block; font-size: 18px; padding: 10px 24px; border-radius: 8px; color: #f6e7c8; border: 1px solid #8a6a3a; background: transparent; text-decoration: none; }
 .film-link:hover { background: rgba(255, 210, 110, .12); }
+
+/* phones: ask for landscape; consoles/controllers: visible focus */
+#rotate { display: none; position: fixed; inset: 0; z-index: 50; background: #140a02; color: #f6e7c8; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 20px; }
+#rotate div { font-size: 64px; animation: rot 2s ease-in-out infinite; }
+@keyframes rot { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) { body.mobile #rotate { display: flex; } }
+.pad-focus { outline: 3px solid #fff !important; outline-offset: 3px; box-shadow: 0 0 16px #ffd36a !important; }
+.quality { display: block; margin-top: 10px; }
+.quality select { font: inherit; background: #120a03; color: #f6e7c8; border: 1px solid #8a6a3a; border-radius: 6px; padding: 3px 6px; }
+#help-pad { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; background: rgba(0,0,0,.5); padding: 5px 12px; border-radius: 6px; white-space: nowrap; }

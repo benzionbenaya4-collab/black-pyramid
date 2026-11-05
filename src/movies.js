@@ -15,13 +15,17 @@ import { buildNefira, buildHuman, buildTamunCamp, buildKeeper, buildTablet, buil
 import { CHAPTERS, lineId } from './screenplay.js';
 import { EXTRA, EXTRA2 } from './screenplay-extra.js';
 import { MAT } from './util.js';
+import { quality, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 const $ = (id) => document.getElementById(id);
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
 // ================================================================ renderer, painterly post-processing (same look as the game)
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+const Q = quality();
+setupMobile();
+if (!checkWebGL()) throw new Error('WebGL is not available');
+const renderer = new THREE.WebGLRenderer({ antialias: Q.level !== 'low', powerPreference: 'high-performance' });
+renderer.setPixelRatio(Q.pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -29,11 +33,12 @@ $('stage').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xf3d3a0, 160, 1900);
 const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.8, 7000);
-const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: 4, type: THREE.HalfFloatType }));
+const canHalf = Q.halfFloat && renderer.capabilities.isWebGL2 && !!renderer.extensions.get('EXT_color_buffer_float');
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: Q.msaa, type: canHalf ? THREE.HalfFloatType : THREE.UnsignedByteType }));
 composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6, 0.45, 1.0));
+if (Q.bloom) composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.6, 0.45, 1.0));
 composer.addPass(new OutputPass());
-const PAINT_R = matchMedia('(pointer: coarse)').matches ? 2 : 3;
+const PAINT_R = Q.painter || 1;
 const painter = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio()) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -58,7 +63,7 @@ const painter = new ShaderPass({
       gl_FragColor = vec4(col, 1.0);
     }`,
 });
-composer.addPass(painter);
+if (Q.painter) composer.addPass(painter);
 composer.addPass(new ShaderPass({
   uniforms: { tDiffuse: { value: null } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -77,13 +82,13 @@ addEventListener('resize', () => {
 });
 const hemi = new THREE.HemisphereLight(0xa8d8ff, 0xe0a070, 0.6);
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
-sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+sun.castShadow = true; sun.shadow.mapSize.set(Q.shadow, Q.shadow);
 Object.assign(sun.shadow.camera, { left: -200, right: 200, top: 200, bottom: -200, near: 1, far: 1600 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.4;
 scene.add(hemi, sun, sun.target);
 
 // ================================================================ the world and the cast
-const world = createWorld(scene);
+const world = createWorld(scene, { groundSeg: Q.groundSeg });
 scene.traverse((o) => {   // the same matte, painted look as the game
   const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
   for (const mt of mats) {
@@ -478,9 +483,25 @@ addEventListener('keydown', (e) => {
 // ================================================================ frame loop
 const clock = new THREE.Clock();
 let t = 0;
+const pad = createGamepad();
+const menuNav = createMenuNav(['#end-card', '#library']);
+function handlePad(dt) {
+  pad.poll();
+  if (!pad.connected) return;
+  if (!$('player').classList.contains('hidden') && $('end-card').classList.contains('hidden')) {
+    if (pad.hit(BTN.A) || pad.hit(BTN.MENU)) setPaused(!paused);
+    if (pad.hit(BTN.B) || pad.hit(BTN.VIEW)) backToLibrary();
+    if (pad.hit(BTN.RB) || pad.hit(BTN.RIGHT)) skipBeat();
+    if (pad.hit(BTN.LB) || pad.hit(BTN.UP)) $('btn-scene').click();
+    if (pad.hit(BTN.Y)) $('btn-voice').click();
+    return;
+  }
+  menuNav(pad, dt);
+}
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
+  handlePad(dt);
   if (!paused) {
     t += dt;
     for (let i = waiters.length - 1; i >= 0; i--) { waiters[i].left -= dt; if (waiters[i].left <= 0) { waiters[i].res(); waiters.splice(i, 1); } }

@@ -5,12 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>קולנוע כם-אשר</title>
   <link rel="stylesheet" href="movies.css">
+  <script>
+  // on-screen errors instead of a blank page (also catches files that fail to load)
+  (function () {
+    function show(msg) {
+      var el = document.getElementById('fatal');
+      if (!el) {
+        el = document.createElement('div'); el.id = 'fatal';
+        el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99;background:#2a0a0a;color:#ffd9d0;border:1px solid #ff6a4a;border-radius:10px;padding:12px 16px;font:14px/1.5 Arial,sans-serif;direction:rtl;max-height:45vh;overflow:auto';
+        el.innerHTML = '<b>אירעה שגיאה.</b> צלמו את ההודעה הזאת ושלחו אותה, כדי שאפשר יהיה לתקן:<pre style="white-space:pre-wrap;direction:ltr;text-align:left;margin:8px 0 0"></pre>';
+        (document.body || document.documentElement).appendChild(el);
+      }
+      el.querySelector('pre').textContent += msg + '\n[' + navigator.userAgent + ']\n';
+    }
+    window.addEventListener('error', function (e) { show((e.message || 'load error') + ' @ ' + (e.filename || (e.target && (e.target.src || e.target.href)) || '') + ':' + (e.lineno || '')); }, true);
+    window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)); });
+  })();
+  </script>
   <script type="importmap">
   { "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/addons/" } }
   </script>
 </head>
 <body>
   <div id="stage"></div>
+  <div id="rotate"><div>📱↻</div><p>סובבו את הטלפון לרוחב לצפייה</p></div>
   <div id="fade"></div>
 
   <!-- the poster screen -->
@@ -33,6 +51,7 @@
         <button id="btn-test-voice" type="button" class="ghost">נסה קול</button>
         <p id="voice-note" class="note"></p>
       </details>
+      <p class="note">🎮 בבקר: A עצירה והמשך · B חזרה · RB משפט הבא · LB סצנה הבאה · Y קול או כתוביות.</p>
       <p class="note">טיפ: הקולות הכי טבעיים בעברית הם של Microsoft Edge (אברי והילה). רווח: עצירה · חץ שמאלה: דילוג על משפט · Esc: חזרה.</p>
     </div>
   </main>
