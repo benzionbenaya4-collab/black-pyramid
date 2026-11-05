@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>בדיקת גרפיקה</title>
+<style>
+  :root { --bg: #140a02; --fg: #f6e7c8; --ok: #7be07b; --bad: #ff7a6a; --gold: #ffd86a; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 22px/1.5 Arial, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { color: var(--gold); font-size: 30px; margin: 0 0 8px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  td { padding: 8px 10px; border-bottom: 1px solid rgba(255, 210, 140, .2); vertical-align: top; }
+  td:first-child { width: 40%; }
+  .ok { color: var(--ok); font-weight: bold; } .bad { color: var(--bad); font-weight: bold; }
+  .ltr { direction: ltr; text-align: left; font-size: 17px; word-break: break-all; }
+  canvas { width: 160px; height: 90px; border: 1px solid #8a6a3a; margin-left: 10px; vertical-align: middle; background: #000; }
+  button { font: inherit; padding: 10px 20px; border-radius: 10px; border: 2px solid var(--gold); background: #2a1806; color: var(--fg); margin: 6px 0 6px 10px; }
+  button:focus { outline: 4px solid var(--gold); }
+  a { color: var(--gold); }
+</style>
+</head>
+<body>
+<main>
+  <h1>בדיקת גרפיקה למשחק</h1>
+  <p>הדף בודק מה הדפדפן הזה מסוגל להציג. צלמו את כל המסך ושלחו.</p>
+  <table id="out"><tbody></tbody></table>
+  <div id="views"></div>
+  <p>
+    <button id="reset" type="button">איפוס הגדרות הגרפיקה של המשחק</button>
+    <a href="./">חזרה למשחק</a>
+  </p>
+  <p id="done"></p>
+</main>
+<script>
+(function () {
+  const VERSION = 'diag-3';
+  const tb = document.querySelector('#out tbody');
+  const row = (k, v, cls) => { const tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td>'; tr.children[0].textContent = k; tr.children[1].textContent = v; if (cls) tr.children[1].className = cls; tb.appendChild(tr); return tr; };
+  row('גרסת הבדיקה', VERSION);
+  row('דפדפן', navigator.userAgent, 'ltr');
+  row('גודל מסך', innerWidth + '×' + innerHeight + ' · יחס פיקסלים ' + devicePixelRatio, 'ltr');
+  let saved = [];
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/lowMem|safeLevel/.test(k)) saved.push(k.replace('blackPyramid.', '') + '=' + localStorage.getItem(k)); } } catch (e) { saved = ['אין גישה לאחסון']; }
+  row('הגדרות גרפיקה שמורות', saved.join(' · ') || 'אין', 'ltr');
+
+  function tryCtx(type, opts) {
+    const c = document.createElement('canvas'); c.width = 160; c.height = 90;
+    let reason = '';
+    c.addEventListener('webglcontextcreationerror', (e) => { reason = e.statusMessage || 'creation error'; }, false);
+    let gl = null;
+    try { gl = c.getContext(type, opts); } catch (e) { reason = String(e && e.message || e); }
+    return { c, gl, reason };
+  }
+  function info(gl) {
+    try {
+      const d = gl.getExtension('WEBGL_debug_renderer_info');
+      return (d ? gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) + ' · maxTex ' + gl.getParameter(gl.MAX_TEXTURE_SIZE) + ' · fragUniforms ' + gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) + ' · varyings ' + gl.getParameter(gl.MAX_VARYING_VECTORS);
+    } catch (e) { return '?'; }
+  }
+  // draw a test triangle with a shader to prove the GPU really draws
+  function drawTest(gl, c, label) {
+    try {
+      const vs = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(vs, 'attribute vec2 p; varying vec2 v; void main(){ v = p; gl_Position = vec4(p, 0.0, 1.0); }'); gl.compileShader(vs);
+      const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs, 'precision mediump float; varying vec2 v; void main(){ gl_FragColor = vec4(0.9, 0.6 + 0.3 * v.y, 0.1, 1.0); }'); gl.compileShader(fs);
+      const pr = gl.createProgram(); gl.attachShader(pr, vs); gl.attachShader(pr, fs); gl.linkProgram(pr);
+      if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return 'שיידר נכשל: ' + gl.getProgramInfoLog(pr);
+      gl.useProgram(pr);
+      const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-0.8, -0.8, 0.8, -0.8, 0, 0.8]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      gl.clearColor(0.05, 0.1, 0.3, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      const px = new Uint8Array(4); gl.readPixels(80, 45, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const v = document.createElement('div'); v.style.margin = '6px 0'; v.appendChild(c); v.appendChild(document.createTextNode(label)); document.getElementById('views').appendChild(v);
+      return px[0] > 150 && px[2] < 100 ? 'מצייר תקין' : 'צבע שגוי: ' + px.join(',');
+    } catch (e) { return 'שגיאה: ' + (e && e.message || e); }
+  }
+  const tests = [
+    ['WebGL2 (חדש)', 'webgl2', {}],
+    ['WebGL2 · ביצועים גבוהים', 'webgl2', { powerPreference: 'high-performance' }],
+    ['WebGL1 (ישן)', 'webgl', {}],
+    ['WebGL1 ללא דרישות', 'webgl', { failIfMajorPerformanceCaveat: false, powerPreference: 'default', antialias: false }],
+    ['experimental-webgl', 'experimental-webgl', {}],
+  ];
+  for (const [name, type, opts] of tests) {
+    const r = tryCtx(type, opts);
+    if (!r.gl) { row(name, 'לא זמין' + (r.reason ? ' — ' + r.reason : ''), 'bad'); continue; }
+    const d = drawTest(r.gl, r.c, name);
+    const tr = row(name, 'זמין · ' + d, d === 'מצייר תקין' ? 'ok' : 'bad');
+    const s = document.createElement('div'); s.className = 'ltr'; s.textContent = info(r.gl); tr.children[1].appendChild(s);
+  }
+  document.getElementById('reset').onclick = () => {
+    try { Object.keys(localStorage).filter((k) => /lowMem|safeLevel/.test(k)).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* ignore */ }
+    document.getElementById('done').textContent = 'ההגדרות אופסו.';
+  };
+  document.getElementById('reset').focus({ preventScroll: true }); scrollTo(0, 0);
+})();
+</script>
+</body>
+</html>

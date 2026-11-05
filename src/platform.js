@@ -38,7 +38,9 @@ function gpuInfo(gl) {
 export function lighterAndReload(reason, gl) {
   const lm = lowMem();
   if (lm < 3) {
-    try { localStorage.setItem(MEM_KEY, String(lm + 1)); } catch { /* no storage */ }
+    // consoles: one crash already costs a full browser restart, so go straight to the safe WebGL1 mode
+    const next = isConsole ? Math.max(lm + 1, 2) : lm + 1;
+    try { localStorage.setItem(MEM_KEY, String(next)); } catch { /* no storage */ }
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:98;display:flex;align-items:center;justify-content:center;background:#140a02;color:#f6e7c8;font:22px/1.6 Arial,sans-serif;direction:rtl;text-align:center;padding:24px';
     el.textContent = 'מתאים את הגרפיקה למכשיר הזה… המשחק ייטען מחדש בעוד רגע.';
@@ -133,21 +135,27 @@ export function installErrorOverlay() {
   return show;
 }
 /** true if the browser can draw 3D; otherwise shows a clear message */
+export const BUILD = '2026-11-05-d';
 export function checkWebGL() {
-  try {
-    const c = document.createElement('canvas');
-    if (c.getContext('webgl2') || c.getContext('webgl')) return true;
-  } catch { /* fall through */ }
+  let reason = '';
+  for (const type of ['webgl2', 'webgl', 'experimental-webgl']) {
+    try {
+      const c = document.createElement('canvas');
+      c.addEventListener('webglcontextcreationerror', (e) => { reason = reason || e.statusMessage || ''; }, false);
+      if (c.getContext(type, { failIfMajorPerformanceCaveat: false })) return true;
+    } catch (e) { reason = reason || String(e?.message || e); }
+  }
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#140a02;color:#f6e7c8;font:20px/1.6 Arial,sans-serif;text-align:center;padding:24px;direction:rtl;z-index:100';
-  el.style.flexDirection = 'column';
-  if (lowMem() > 0) {
-    // the game's 3D crashed earlier on this device: browsers then block 3D for the site until fully restarted
-    el.innerHTML = '<div><b>הגרפיקה נתקעה בפעם הקודמת, והדפדפן חסם זמנית תלת-ממד.</b><br>סגרו את הדפדפן <b>לגמרי</b> ופתחו אותו מחדש. המשחק יעלה עם גרפיקה מותאמת למכשיר.</div>'
-      + (isXbox ? '<div style="margin-top:14px;font-size:17px">באקס בוקס: לחצו על כפתור ה-Xbox בבקר, סמנו את Edge, לחצו ☰ (Menu) ובחרו <b>Quit / יציאה</b>. אחר כך פתחו את Edge שוב.</div>' : '')
-      + `<div style="margin-top:14px;font-size:13px;opacity:.7;direction:ltr">WebGL blocked after crash · safe level ${lowMem()}</div>`;
-  } else el.textContent = 'הדפדפן הזה לא תומך בגרפיקה תלת-ממדית (WebGL). נסו דפדפן אחר, למשל Microsoft Edge או Chrome.';
+  el.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#140a02;color:#f6e7c8;font:22px/1.6 Arial,sans-serif;text-align:center;padding:24px;direction:rtl;z-index:100';
+  const crashed = lowMem() > 0;
+  el.innerHTML = (crashed
+    ? '<div><b>הגרפיקה נתקעה בפעם הקודמת, והדפדפן חסם זמנית תלת-ממד.</b><br>סגרו את הדפדפן <b>לגמרי</b> ופתחו אותו מחדש. המשחק יעלה במצב בטוח.</div>'
+    : '<div><b>הדפדפן לא מצליח להפעיל גרפיקה תלת-ממדית (WebGL) כרגע.</b></div>')
+    + (isXbox ? '<div style="margin-top:12px;font-size:18px">באקס בוקס: אם סגירת Edge לא עזרה, הפעילו מחדש את הקונסולה: החזיקו את כפתור ה-Xbox בבקר ← "הפעל מחדש את הקונסולה" (Restart console).</div>' : '')
+    + '<div style="margin-top:12px;font-size:18px"><a href="diag.html" style="color:#ffd86a">לדף בדיקת הגרפיקה</a></div>'
+    + `<div style="margin-top:12px;font-size:15px;opacity:.75;direction:ltr">build ${BUILD} · safe ${lowMem()} · ${reason || 'no reason given'}</div>`;
   document.body.appendChild(el);
+  setTimeout(() => el.querySelector('a')?.focus(), 50);
   return false;
 }
 
