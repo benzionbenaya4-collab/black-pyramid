@@ -16,6 +16,7 @@ const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', '
 export const MOVE_OPTS = { left: 'מקל שמאלי', right: 'מקל ימני', dpad: 'חצים (D-pad)' };
 export const LOOK_OPTS = { right: 'מקל ימני', left: 'מקל שמאלי', none: 'כבוי' };
 export const SPEED_OPTS = { 0.5: 'איטית', 1: 'רגילה', 1.6: 'מהירה' };
+export const DEADZONE_OPTS = { 0.15: 'קטן', 0.25: 'רגיל', 0.35: 'גדול', 0.45: 'גדול מאוד' };
 export function padName(i) { return i == null ? 'לפי הגדרת ההליכה' : PAD_NAMES[i] || `כפתור ${i}`; }
 export function keyName(code) {
   if (!code) return '—';
@@ -42,9 +43,10 @@ export function createControls() {
     get padLook() { return saved.padLook || 'right'; },
     get invertY() { return !!saved.invertY; },
     get lookSpeed() { return saved.lookSpeed || 1; },
+    get deadzone() { return saved.deadzone || 0.25; },
     /** cycle a controller option to its next value (buttons that cycle work well with a controller) */
     cycle(name) {
-      const lists = { padMove: Object.keys(MOVE_OPTS), padLook: Object.keys(LOOK_OPTS), lookSpeed: Object.keys(SPEED_OPTS).map(Number) };
+      const lists = { padMove: Object.keys(MOVE_OPTS), padLook: Object.keys(LOOK_OPTS), lookSpeed: Object.keys(SPEED_OPTS).map(Number), deadzone: Object.keys(DEADZONE_OPTS).map(Number) };
       if (name === 'invertY') saved.invertY = !saved.invertY;
       else { const l = lists[name], cur = ctl[name]; saved[name] = l[(l.indexOf(cur) + 1) % l.length]; }
       // walking and camera can't share the same stick: move the camera to the other one

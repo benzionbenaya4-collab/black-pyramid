@@ -507,7 +507,7 @@ let t = 0;
 const pad = createGamepad();
 const menuNav = createMenuNav(['#end-card', '#library']);
 function handlePad(dt) {
-  pad.poll();
+  pad.poll(dt);
   if (!pad.connected) return;
   if (!$('player').classList.contains('hidden') && $('end-card').classList.contains('hidden')) {
     if (pad.hit(BTN.A) || pad.hit(BTN.MENU)) setPaused(!paused);

@@ -176,17 +176,55 @@ export function setupMobile() {
 // ================================================================ gamepads (Xbox controller and others, "standard" mapping)
 export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, MENU: 9, LS: 10, RS: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
 export function createGamepad() {
-  const st = { connected: false, lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, down: new Set(), pressed: new Set(), used: false };
-  let prev = new Set();
-  const dz = (v) => (Math.abs(v) < 0.18 ? 0 : (v - Math.sign(v) * 0.18) / 0.82);
-  addEventListener('gamepadconnected', () => { st.connected = true; });
-  st.poll = () => {
-    const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
-    const p = pads[0];
+  // deadzone: how far a stick must move before it counts (changeable in the controls screen)
+  const st = { connected: false, lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, down: new Set(), pressed: new Set(), used: false, deadzone: 0.25, id: '' };
+  let prev = new Set(), padIndex = -1, rest = null, restN = 0, stuck = [], calib = 0;
+  // radial deadzone for a stick, after removing the stick's resting offset (worn sticks drift a little)
+  const stick = (x, y) => {
+    const l = Math.hypot(x, y), d = st.deadzone;
+    if (l < d) return [0, 0];
+    const k = Math.min(1, (l - d) / (1 - d)) / l;
+    return [x * k, y * k];
+  };
+  const reset = () => { rest = null; restN = 0; stuck = []; calib = 0.6; };
+  st.calibrate = reset;   // "hands off the controller" recalibration
+  addEventListener('gamepadconnected', () => { st.connected = true; padIndex = -1; reset(); });
+  addEventListener('gamepaddisconnected', () => { padIndex = -1; reset(); });
+  // pick the real controller: Xbox Edge can list extra entries (headset, remote, virtual pad)
+  function choose(pads) {
+    const real = pads.filter((p) => p && p.connected !== false);
+    if (!real.length) return null;
+    const cur = real.find((p) => p.index === padIndex);
+    const active = real.find((p) => p.index !== padIndex && p.buttons.some((b) => b.pressed));
+    if (active && (!cur || !cur.buttons.some((b) => b.pressed))) { padIndex = active.index; reset(); return active; }   // whichever pad presses a button wins
+    if (cur) return cur;
+    const best = real.find((p) => p.mapping === 'standard') || real[0];
+    padIndex = best.index; reset();
+    return best;
+  }
+  st.poll = (dt = 1 / 60) => {
+    const p = choose(navigator.getGamepads ? [...navigator.getGamepads()] : []);
     st.pressed = new Set();
     if (!p) { st.connected = false; st.lx = st.ly = st.rx = st.ry = st.lt = st.rt = 0; st.down = new Set(); prev = new Set(); return st; }
-    st.connected = true;
-    st.lx = dz(p.axes[0] || 0); st.ly = dz(p.axes[1] || 0); st.rx = dz(p.axes[2] || 0); st.ry = dz(p.axes[3] || 0);
+    st.connected = true; st.id = p.id || '';
+    const ax = [0, 1, 2, 3].map((i) => +p.axes[i] || 0);
+    // calibration: average the resting stick position for a moment after connecting
+    if (!rest) rest = [0, 0, 0, 0];
+    if (calib > 0) {
+      calib -= Math.min(dt, 0.1); restN++;
+      for (let i = 0; i < 4; i++) rest[i] += (ax[i] - rest[i]) / restN;
+      // an axis resting near ±1 is not a stick (e.g. a trigger reported as an axis): ignore it until it moves
+      if (calib <= 0) stuck = rest.map((r) => Math.abs(r) > 0.6);
+      st.lx = st.ly = st.rx = st.ry = 0;
+    } else {
+      const v = ax.map((x, i) => {
+        if (stuck[i]) { if (Math.abs(x - rest[i]) > 0.5 && Math.abs(x) < 0.6) stuck[i] = false; else return 0; }
+        const off = Math.abs(rest[i]) < 0.35 ? rest[i] : 0;   // remove a small resting drift
+        return Math.max(-1, Math.min(1, x - off));
+      });
+      [st.lx, st.ly] = stick(v[0], v[1]);
+      [st.rx, st.ry] = stick(v[2], v[3]);
+    }
     const down = new Set();
     p.buttons.forEach((b, i) => { if (b.pressed || b.value > 0.5) down.add(i); });
     st.lt = p.buttons[6]?.value || 0; st.rt = p.buttons[7]?.value || 0;
@@ -197,6 +235,7 @@ export function createGamepad() {
   };
   st.isDown = (b) => st.down.has(b);
   st.hit = (b) => st.pressed.has(b);
+  st.raw = () => { const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : []; return pads.map((q) => `${q.index}: ${q.id.slice(0, 40)} · ${q.mapping || 'no mapping'} · axes ${[...q.axes].map((a) => a.toFixed(2)).join(' ')}`); };
   return st;
 }
 

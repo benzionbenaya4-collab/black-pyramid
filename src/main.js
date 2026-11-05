@@ -13,7 +13,7 @@ import { createCinema } from './cinema.js';
 import { createCombat, ARENA } from './combat.js';
 import { createStory, defaultFlags, GATE_HOUR } from './story.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
-import { createControls, ACTIONS, keyName, padName, MOVE_OPTS, LOOK_OPTS, SPEED_OPTS } from './controls.js';
+import { createControls, ACTIONS, keyName, padName, MOVE_OPTS, LOOK_OPTS, SPEED_OPTS, DEADZONE_OPTS } from './controls.js';
 import { BUILD, watchContext, createRenderGuard, quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 // ================================================================ constants
@@ -649,7 +649,7 @@ function renderControls() {
   }
   for (const btn of document.querySelectorAll('#ctl-pad [data-cycle]')) {
     const n = btn.dataset.cycle;
-    btn.textContent = n === 'padMove' ? MOVE_OPTS[ctl.padMove] : n === 'padLook' ? LOOK_OPTS[ctl.padLook] : n === 'invertY' ? (ctl.invertY ? 'פועל' : 'כבוי') : SPEED_OPTS[ctl.lookSpeed];
+    btn.textContent = n === 'padMove' ? MOVE_OPTS[ctl.padMove] : n === 'padLook' ? LOOK_OPTS[ctl.padLook] : n === 'invertY' ? (ctl.invertY ? 'פועל' : 'כבוי') : n === 'deadzone' ? DEADZONE_OPTS[ctl.deadzone] : SPEED_OPTS[ctl.lookSpeed];
   }
   $('ctl-wait').classList.toggle('hidden', !ctlWait);
   $('ctl-wait').textContent = ctlWait ? (ctlWait.kind === 'key' ? 'לחץ עכשיו על המקש החדש במקלדת (Esc לביטול)' : 'לחץ עכשיו על הכפתור החדש בבקר') : '';
@@ -666,6 +666,7 @@ function toggleControls(force) {
   if (show) { $('ctl-size').value = ctl.touchSize; renderControls(); }
 }
 for (const btn of document.querySelectorAll('#ctl-pad [data-cycle]')) btn.addEventListener('click', () => { ctl.cycle(btn.dataset.cycle); renderControls(); });
+$('ctl-calib').addEventListener('click', () => { pad.calibrate(); $('ctl-calib').textContent = 'מכייל… אל תגעו במקלות'; setTimeout(() => { $('ctl-calib').textContent = '✓ כויל'; }, 900); });
 $('btn-controls').addEventListener('click', () => toggleControls(true));
 $('btn-controls-title').addEventListener('click', () => toggleControls(true));
 $('ctl-close').addEventListener('click', () => toggleControls(false));
@@ -675,7 +676,8 @@ document.body.style.setProperty('--tsize', ctl.touchSize);
 updateHelp();
 
 function handlePad(dt) {
-  pad.poll();
+  pad.deadzone = ctl.deadzone; pad.poll(dt);
+  if (!$('controls').classList.contains('hidden')) $('ctl-live').textContent = pad.connected ? `controller: L ${pad.lx.toFixed(2)},${pad.ly.toFixed(2)}  R ${pad.rx.toFixed(2)},${pad.ry.toFixed(2)}  |  ${pad.raw().join('  ||  ')}` : '';
   $('help-pad').classList.toggle('hidden', !pad.used); $('help').classList.toggle('hidden', pad.used);
   $('pad-note').classList.toggle('hidden', !pad.connected);
   if (!pad.connected) return;
