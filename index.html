@@ -71,6 +71,7 @@
     </div>
     <button id="btn-journal" type="button">📜 יומן (J)</button>
     <button id="btn-design" type="button">🎨 עיצוב הדמות</button>
+    <button id="btn-controls" type="button">🎮 שליטה</button>
     <div id="dialog" class="hidden">
       <div id="dlg-name"></div>
       <div id="dlg-text"></div>
@@ -101,6 +102,7 @@
         <button id="btn-continue" class="hidden">המשך משחק</button>
         <button id="btn-new">משחק חדש</button>
         <button id="btn-design-title" class="ghost" type="button">🎨 עיצוב הדמות</button>
+        <button id="btn-controls-title" class="ghost" type="button">🎮 שליטה ומקשים</button>
         <a class="film-link" href="movies.html">🎬 לסרט של המשחק</a>
       </div>
       <p id="endings-found" class="note"></p>
@@ -143,6 +145,19 @@
   </div>
 
   <!-- Journal -->
+  <div id="controls" class="screen hidden">
+    <div class="panel controls">
+      <h2>🎮 שליטה ומקשים</h2>
+      <p class="note">לחץ על מקש או על כפתור בטבלה, ואז לחץ על המקש החדש במקלדת או על הכפתור החדש בבקר. השינוי נשמר אוטומטית.</p>
+      <table id="ctl-table"><thead><tr><th>פעולה</th><th>⌨ מקלדת</th><th>🎮 בקר</th></tr></thead><tbody></tbody></table>
+      <p class="note">מקל ימני בבקר / גרירה במסך: הזזת המצלמה.</p>
+      <div id="ctl-touch">
+        <label class="note">📱 גודל הכפתורים על המסך בטלפון: <input id="ctl-size" type="range" min="0.7" max="1.5" step="0.1"></label>
+      </div>
+      <p id="ctl-wait" class="note hidden"></p>
+      <div class="buttons"><button id="ctl-reset" type="button" class="ghost">איפוס לברירת מחדל</button><button id="ctl-close" type="button">סגור</button></div>
+    </div>
+  </div>
   <div id="journal" class="screen hidden">
     <div class="panel journal">
       <h2>יומן המסע של חארו</h2>

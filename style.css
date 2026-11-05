@@ -192,3 +192,19 @@ body.mobile #btn-design { left: calc(98px + env(safe-area-inset-left, 0px)); }
 body.mobile #hpbar { bottom: auto; top: 128px; right: auto; left: 50%; transform: translateX(-50%); width: min(300px, 40vw); }
 body.mobile #bossbar { top: 92px; width: min(460px, 50vw); }
 body.mobile #hpbar .keys { display: none; }
+
+/* controls screen */
+#btn-controls { position: absolute; top: 310px; left: 14px; pointer-events: auto; font-size: 14px; padding: 6px 12px; }
+body.mobile #btn-controls { top: calc(136px + env(safe-area-inset-top, 0px)); left: calc(212px + env(safe-area-inset-left, 0px)); font-size: 12px; padding: 5px 9px; }
+.panel.controls { max-width: 640px; max-height: 92vh; overflow: auto; }
+#ctl-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+#ctl-table th, #ctl-table td { padding: 5px 8px; border-bottom: 1px solid rgba(255, 210, 140, .18); text-align: right; }
+#ctl-table button { min-width: 92px; padding: 4px 10px; font-size: 14px; }
+#ctl-table button.wait { animation: ctlblink .8s infinite; }
+#ctl-table td.fixed { color: #c9b38c; font-size: 13px; }
+@keyframes ctlblink { 50% { filter: brightness(1.6); } }
+#ctl-wait { color: #ffd86a; }
+body:not(.mobile) #ctl-touch { display: none; }
+#tbtns { transform: scale(var(--tsize, 1)); transform-origin: 100% 100%; }
+#joy { scale: var(--tsize, 1); }
+#controls { background: rgba(8, 5, 2, .9); z-index: 40; }

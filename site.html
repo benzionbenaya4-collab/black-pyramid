@@ -196,6 +196,22 @@ body.mobile #hpbar { bottom: auto; top: 128px; right: auto; left: 50%; transform
 body.mobile #bossbar { top: 92px; width: min(460px, 50vw); }
 body.mobile #hpbar .keys { display: none; }
 
+/* controls screen */
+#btn-controls { position: absolute; top: 310px; left: 14px; pointer-events: auto; font-size: 14px; padding: 6px 12px; }
+body.mobile #btn-controls { top: calc(136px + env(safe-area-inset-top, 0px)); left: calc(212px + env(safe-area-inset-left, 0px)); font-size: 12px; padding: 5px 9px; }
+.panel.controls { max-width: 640px; max-height: 92vh; overflow: auto; }
+#ctl-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+#ctl-table th, #ctl-table td { padding: 5px 8px; border-bottom: 1px solid rgba(255, 210, 140, .18); text-align: right; }
+#ctl-table button { min-width: 92px; padding: 4px 10px; font-size: 14px; }
+#ctl-table button.wait { animation: ctlblink .8s infinite; }
+#ctl-table td.fixed { color: #c9b38c; font-size: 13px; }
+@keyframes ctlblink { 50% { filter: brightness(1.6); } }
+#ctl-wait { color: #ffd86a; }
+body:not(.mobile) #ctl-touch { display: none; }
+#tbtns { transform: scale(var(--tsize, 1)); transform-origin: 100% 100%; }
+#joy { scale: var(--tsize, 1); }
+#controls { background: rgba(8, 5, 2, .9); z-index: 40; }
+
 </style>
   <script>
   // on-screen errors instead of a blank page (also catches files that fail to load)
@@ -263,6 +279,7 @@ body.mobile #hpbar .keys { display: none; }
     </div>
     <button id="btn-journal" type="button">📜 יומן (J)</button>
     <button id="btn-design" type="button">🎨 עיצוב הדמות</button>
+    <button id="btn-controls" type="button">🎮 שליטה</button>
     <div id="dialog" class="hidden">
       <div id="dlg-name"></div>
       <div id="dlg-text"></div>
@@ -293,6 +310,7 @@ body.mobile #hpbar .keys { display: none; }
         <button id="btn-continue" class="hidden">המשך משחק</button>
         <button id="btn-new">משחק חדש</button>
         <button id="btn-design-title" class="ghost" type="button">🎨 עיצוב הדמות</button>
+        <button id="btn-controls-title" class="ghost" type="button">🎮 שליטה ומקשים</button>
         <a class="film-link" href="movies.html">🎬 לסרט של המשחק</a>
       </div>
       <p id="endings-found" class="note"></p>
@@ -335,6 +353,19 @@ body.mobile #hpbar .keys { display: none; }
   </div>
 
   <!-- Journal -->
+  <div id="controls" class="screen hidden">
+    <div class="panel controls">
+      <h2>🎮 שליטה ומקשים</h2>
+      <p class="note">לחץ על מקש או על כפתור בטבלה, ואז לחץ על המקש החדש במקלדת או על הכפתור החדש בבקר. השינוי נשמר אוטומטית.</p>
+      <table id="ctl-table"><thead><tr><th>פעולה</th><th>⌨ מקלדת</th><th>🎮 בקר</th></tr></thead><tbody></tbody></table>
+      <p class="note">מקל ימני בבקר / גרירה במסך: הזזת המצלמה.</p>
+      <div id="ctl-touch">
+        <label class="note">📱 גודל הכפתורים על המסך בטלפון: <input id="ctl-size" type="range" min="0.7" max="1.5" step="0.1"></label>
+      </div>
+      <p id="ctl-wait" class="note hidden"></p>
+      <div class="buttons"><button id="ctl-reset" type="button" class="ghost">איפוס לברירת מחדל</button><button id="ctl-close" type="button">סגור</button></div>
+    </div>
+  </div>
   <div id="journal" class="screen hidden">
     <div class="panel journal">
       <h2>יומן המסע של חארו</h2>

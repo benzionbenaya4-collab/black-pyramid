@@ -13,6 +13,7 @@ import { createCinema } from './cinema.js';
 import { createCombat, ARENA } from './combat.js';
 import { createStory, defaultFlags, GATE_HOUR } from './story.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
+import { createControls, ACTIONS, keyName, padName } from './controls.js';
 import { quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 // ================================================================ constants
@@ -212,8 +213,12 @@ function pressAction() {
   if (phase !== 'playing') return;
   if (story.busy) story.dialog.advance(); else story.interact();
 }
+const ctl = createControls();
 addEventListener('keydown', (e) => {
   if (editor.isOpen) return;   // typing in the designer must not move the hero
+  if (ctlWait) { e.preventDefault(); if (e.code !== 'Escape' && ctlWait.kind === 'key') ctl.setKey(ctlWait.id, e.code); ctlWait = null; renderControls(); return; }
+  if (!$('controls').classList.contains('hidden')) { if (e.code === 'Escape') toggleControls(false); return; }
+  const ev0 = e; e = { code: ctl.key(ev0.code), repeat: ev0.repeat, preventDefault: () => ev0.preventDefault() };
   if (cinema.playing && ['Space', 'KeyE', 'Enter', 'Escape'].includes(e.code) && !e.repeat) { e.preventDefault(); cinema.finish(); return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (phase === 'playing' && story.busy) {
@@ -228,7 +233,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyJ') toggleJournal();
   if (e.code === 'KeyT' && DEV) { warpOn = !warpOn; $('warp').classList.toggle('hidden', !warpOn); }
 });
-addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('keyup', (e) => { keys[ctl.key(e.code)] = false; keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 let dragging = false, lastX = 0, lastY = 0, dragDist = 0;
@@ -247,7 +252,7 @@ renderer.domElement.addEventListener('wheel', (e) => { cam.dist = THREE.MathUtil
 // pushing it all the way runs. Right side: A (action), B (jump), and in the fight X (sun ray) / Y (light wave).
 // Dragging anywhere else on the screen turns the camera.
 const touch = { x: 0, y: 0, active: false, run: false };
-const hasTouch = !isConsole && (isMobile || matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+const hasTouch = isMobile && !isConsole;   // on-screen buttons only on phones / tablets, never on Xbox or PC
 if (hasTouch) {
   $('touch').classList.remove('hidden');
   const zone = $('joy-zone'), joy = $('joy'), knob = $('joy-knob');
@@ -521,7 +526,7 @@ function updatePlaying(dt) {
     if (pad.connected) { fwdIn += -pad.ly; turnIn += -pad.lx; }
   }
   fwdIn = THREE.MathUtils.clamp(fwdIn, -1, 1); turnIn = THREE.MathUtils.clamp(turnIn, -1, 1);
-  const running = (keys.ShiftLeft || keys.ShiftRight || touch.run || pad.rt > 0.4 || pad.isDown(BTN.LS)) && fwdIn > 0;
+  const running = (keys.ShiftLeft || keys.ShiftRight || touch.run || pad.isDown(ctl.pad('run')) || pad.isDown(BTN.LS)) && fwdIn > 0;
   player.turn = THREE.MathUtils.damp(player.turn || 0, turnIn, 10, dt);
   player.facing += player.turn * TURN * (running ? 0.75 : 1) * dt;
   const target = fwdIn > 0 ? (running ? RUN : WALK) * fwdIn : fwdIn * WALK * 0.55;
@@ -530,7 +535,7 @@ function updatePlaying(dt) {
   player.pos.addScaledVector(fwd, player.speed * dt);
   resolveCollisions(player.pos);
   const g = groundAt(player.pos.x, player.pos.z);
-  if (canMove && (keys.Space || pad.isDown(BTN.B)) && player.grounded) { player.velY = 24; player.grounded = false; }
+  if (canMove && (keys.Space || pad.isDown(ctl.pad('jump'))) && player.grounded) { player.velY = 24; player.grounded = false; }
   player.velY -= 60 * dt;
   player.pos.y += player.velY * dt;
   if (player.pos.y <= g) {
@@ -599,13 +604,60 @@ function drawMinimap() {
 
 // ================================================================ controller (Xbox and others)
 const pad = createGamepad();
-const menuNav = createMenuNav(['#editor', '#journal', '#choice', '#ending', '#title', '#dlg-choices']);
+const menuNav = createMenuNav(['#controls', '#editor', '#journal', '#choice', '#ending', '#title', '#dlg-choices']);
+// ---------------------------------------------------------------- controls screen (change keys / buttons)
+let ctlWait = null, ctlCool = 0;
+function renderControls() {
+  const tb = $('ctl-table').querySelector('tbody'); tb.innerHTML = '';
+  for (const a of ACTIONS) {
+    const tr = document.createElement('tr');
+    const b = ctl.bind[a.id];
+    tr.innerHTML = `<td>${a.name}</td><td></td><td></td>`;
+    const kb = document.createElement('button'); kb.type = 'button';
+    kb.textContent = ctlWait && ctlWait.id === a.id && ctlWait.kind === 'key' ? 'לחץ מקש…' : keyName(b.key);
+    kb.classList.toggle('wait', !!(ctlWait && ctlWait.id === a.id && ctlWait.kind === 'key'));
+    kb.onclick = () => { ctlWait = { id: a.id, kind: 'key' }; renderControls(); };
+    tr.children[1].appendChild(kb);
+    if (a.pad == null) { tr.children[2].textContent = padName(null); tr.children[2].className = 'fixed'; }
+    else {
+      const pb = document.createElement('button'); pb.type = 'button';
+      const w = ctlWait && ctlWait.id === a.id && ctlWait.kind === 'pad';
+      pb.textContent = w ? 'לחץ בבקר…' : padName(b.pad); pb.classList.toggle('wait', !!w);
+      pb.onclick = () => { ctlWait = { id: a.id, kind: 'pad' }; ctlCool = 0; pad.pressed = new Set(); renderControls(); };
+      tr.children[2].appendChild(pb);
+    }
+    tb.appendChild(tr);
+  }
+  $('ctl-wait').classList.toggle('hidden', !ctlWait);
+  $('ctl-wait').textContent = ctlWait ? (ctlWait.kind === 'key' ? 'לחץ עכשיו על המקש החדש במקלדת (Esc לביטול)' : 'לחץ עכשיו על הכפתור החדש בבקר') : '';
+  updateHelp();
+}
+function updateHelp() {
+  const k = (id) => keyName(ctl.bind[id].key), p = (id) => padName(ctl.bind[id].pad).split(' ')[0];
+  $('help').textContent = `${k('fwd')}/${k('back')}: הליכה קדימה ואחורה · ${k('left')}/${k('right')}: סיבוב · ${k('run')}: ריצה · ${k('jump')}: קפיצה · גרירת עכבר: הסתכלות מסביב · גלגלת: זום · ${k('action')}: דיבור ופעולה · ${k('journal')}: יומן`;
+  $('help-pad').textContent = `🎮 מקל שמאלי: הליכה וסיבוב · מקל ימני: מצלמה · ${p('action')}: פעולה ושיחה · ${p('jump')}: קפיצה · ${p('run')}: ריצה · ${p('shoot')}: קרן שמש · ${p('burst')}: גל אור · ${p('journal')}: יומן`;
+}
+function toggleControls(force) {
+  const el = $('controls'), show = force ?? el.classList.contains('hidden');
+  el.classList.toggle('hidden', !show); ctlWait = null;
+  if (show) { $('ctl-size').value = ctl.touchSize; renderControls(); }
+}
+$('btn-controls').addEventListener('click', () => toggleControls(true));
+$('btn-controls-title').addEventListener('click', () => toggleControls(true));
+$('ctl-close').addEventListener('click', () => toggleControls(false));
+$('ctl-reset').addEventListener('click', () => { ctl.reset(); $('ctl-size').value = 1; document.body.style.setProperty('--tsize', 1); renderControls(); });
+$('ctl-size').addEventListener('input', (e) => { ctl.setTouchSize(+e.target.value); document.body.style.setProperty('--tsize', ctl.touchSize); });
+document.body.style.setProperty('--tsize', ctl.touchSize);
+updateHelp();
+
 function handlePad(dt) {
   pad.poll();
   $('help-pad').classList.toggle('hidden', !pad.used); $('help').classList.toggle('hidden', pad.used);
   $('pad-note').classList.toggle('hidden', !pad.connected);
   if (!pad.connected) return;
-  const aHeld = pad.isDown(BTN.A) && phase === 'playing' && !story.busy;   // hold A = hold E (rescue, mirrors)
+  if (ctlWait) { if (ctlWait.kind === 'pad' && pad.pressed.size) { const b = [...pad.pressed][0]; ctl.setPad(ctlWait.id, b); ctlWait = null; ctlCool = 0.4; renderControls(); } return; }
+  if (!$('controls').classList.contains('hidden')) { if (ctlCool > 0) { ctlCool -= dt; return; } if (pad.hit(BTN.B)) { toggleControls(false); return; } menuNav(pad, dt); return; }
+  const aHeld = pad.isDown(ctl.pad('action')) && phase === 'playing' && !story.busy;   // hold A = hold E (rescue, mirrors)
   if (aHeld) { keys.KeyE = true; padE = true; } else if (padE) { keys.KeyE = false; padE = false; }
   if (cinema.playing && (pad.hit(BTN.A) || pad.hit(BTN.B) || pad.hit(BTN.MENU))) { cinema.finish(); return; }
   const dlgChoices = story.busy && $('dlg-choices').childElementCount > 0;
@@ -615,12 +667,12 @@ function handlePad(dt) {
     menuNav(pad, dt); return;
   }
   if (phase === 'playing') {
-    if (pad.hit(BTN.A)) pressAction();
-    if (pad.hit(BTN.VIEW) || pad.hit(BTN.MENU)) toggleJournal();
+    if (pad.hit(ctl.pad('action'))) pressAction();
+    if (pad.hit(ctl.pad('journal')) || pad.hit(BTN.MENU)) toggleJournal();
   }
   if (phase === 'fight') {
-    if (pad.isDown(BTN.X)) combat.shoot();
-    if (pad.hit(BTN.Y) || pad.hit(BTN.RB)) combat.burst();
+    if (pad.isDown(ctl.pad('shoot'))) combat.shoot();
+    if (pad.hit(ctl.pad('burst'))) combat.burst();
   }
   if (pad.rx || pad.ry) {   // right stick: look around
     cam.orbit -= pad.rx * dt * 2.4; dragging = true; padLook = 0.6;
@@ -642,7 +694,7 @@ function frame() {
   holdDtNow = Math.min(rawDt, 0.5);   // real time for hold-to-act and messages, even on slow machines
   t += dt;
   handlePad(dt);
-  document.body.classList.toggle('touch-live', hasTouch && !pad.connected && ((phase === 'playing' && !story.busy) || phase === 'fight') && $('journal').classList.contains('hidden') && $('editor').classList.contains('hidden'));
+  document.body.classList.toggle('touch-live', hasTouch && !pad.connected && ((phase === 'playing' && !story.busy) || phase === 'fight') && $('journal').classList.contains('hidden') && $('editor').classList.contains('hidden') && $('controls').classList.contains('hidden'));
 
   if (phase === 'playing' || phase === 'fight') updatePlaying(dt);
   if (phase === 'fight') {
