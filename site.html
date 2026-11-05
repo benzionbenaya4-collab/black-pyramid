@@ -1,4 +1,5 @@
-<title>משמר הפירמידה השחורה</title>
+<meta name="build" content="65697ea">
+  <title>משמר הפירמידה השחורה</title>
   <style>
 :root { color-scheme: dark; background: #000; }
 * { box-sizing: border-box; }
@@ -229,19 +230,34 @@ body.console #ctl-table th:nth-child(2), body.console #ctl-table td:nth-child(2)
         el.innerHTML = '<b>אירעה שגיאה.</b> צלמו את ההודעה הזאת ושלחו אותה, כדי שאפשר יהיה לתקן:<pre style="white-space:pre-wrap;direction:ltr;text-align:left;margin:8px 0 0"></pre>';
         (document.body || document.documentElement).appendChild(el);
       }
-      el.querySelector('pre').textContent += msg + '\n[' + navigator.userAgent + ']\n';
+      el.querySelector('pre').textContent += msg + '\n[build ' + ((document.querySelector('meta[name=build]') || {}).content || '?') + '] [' + navigator.userAgent + ']\n';
     }
     window.addEventListener('error', function (e) { show((e.message || 'load error') + ' @ ' + (e.filename || (e.target && (e.target.src || e.target.href)) || '') + ':' + (e.lineno || '')); }, true);
     window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)); });
   })();
   </script>
   <script type="importmap">
-  {
-    "imports": {
-      "three": "./vendor/three/build/three.module.js",
-      "three/addons/": "./vendor/three/addons/"
-    }
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/addons/",
+    "./src/cinema.js": "./src/cinema.js",
+    "./src/combat.js": "./src/combat.js",
+    "./src/controls.js": "./src/controls.js",
+    "./src/editor.js": "./src/editor.js",
+    "./src/endings.js": "./src/endings.js",
+    "./src/glyphs.js": "./src/glyphs.js",
+    "./src/golem.js": "./src/golem.js",
+    "./src/main.js": "./src/main.js",
+    "./src/movies.js": "./src/movies.js",
+    "./src/platform.js": "./src/platform.js",
+    "./src/screenplay-extra.js": "./src/screenplay-extra.js",
+    "./src/screenplay.js": "./src/screenplay.js",
+    "./src/story.js": "./src/story.js",
+    "./src/util.js": "./src/util.js",
+    "./src/world.js": "./src/world.js"
   }
+}
   </script>
 
 <script>document.documentElement.dir = 'rtl'; document.documentElement.lang = 'he';</script>
@@ -319,6 +335,7 @@ body.console #ctl-table th:nth-child(2), body.console #ctl-table td:nth-child(2)
         <a class="film-link" href="movies.html">🎬 לסרט של המשחק</a>
       </div>
       <p id="endings-found" class="note"></p>
+      <p id="build-id" class="note" style="opacity:.55;font-size:12px;direction:ltr"></p>
       <p id="pad-note" class="note hidden">🎮 בקר מחובר: מקל שמאלי לבחירה, A לאישור.</p>
     </div>
   </div>

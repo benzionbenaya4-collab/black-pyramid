@@ -1,4 +1,5 @@
-<title>קולנוע כם-אשר</title>
+<meta name="build" content="65697ea">
+  <title>קולנוע כם-אשר</title>
   <style>
 :root { color-scheme: dark; background: #000; }
 :root { color-scheme: dark; --ink: #f6e7c8; --gold: #ffcf5c; --panel: rgba(18, 10, 3, .82); --line: #c99a3a; }
@@ -67,14 +68,34 @@ h1 { margin: 0 0 10px; color: var(--gold); font-size: clamp(30px, 6vw, 46px); te
         el.innerHTML = '<b>אירעה שגיאה.</b> צלמו את ההודעה הזאת ושלחו אותה, כדי שאפשר יהיה לתקן:<pre style="white-space:pre-wrap;direction:ltr;text-align:left;margin:8px 0 0"></pre>';
         (document.body || document.documentElement).appendChild(el);
       }
-      el.querySelector('pre').textContent += msg + '\n[' + navigator.userAgent + ']\n';
+      el.querySelector('pre').textContent += msg + '\n[build ' + ((document.querySelector('meta[name=build]') || {}).content || '?') + '] [' + navigator.userAgent + ']\n';
     }
     window.addEventListener('error', function (e) { show((e.message || 'load error') + ' @ ' + (e.filename || (e.target && (e.target.src || e.target.href)) || '') + ':' + (e.lineno || '')); }, true);
     window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)); });
   })();
   </script>
   <script type="importmap">
-  { "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/addons/",
+    "./src/cinema.js": "./src/cinema.js",
+    "./src/combat.js": "./src/combat.js",
+    "./src/controls.js": "./src/controls.js",
+    "./src/editor.js": "./src/editor.js",
+    "./src/endings.js": "./src/endings.js",
+    "./src/glyphs.js": "./src/glyphs.js",
+    "./src/golem.js": "./src/golem.js",
+    "./src/main.js": "./src/main.js",
+    "./src/movies.js": "./src/movies.js",
+    "./src/platform.js": "./src/platform.js",
+    "./src/screenplay-extra.js": "./src/screenplay-extra.js",
+    "./src/screenplay.js": "./src/screenplay.js",
+    "./src/story.js": "./src/story.js",
+    "./src/util.js": "./src/util.js",
+    "./src/world.js": "./src/world.js"
+  }
+}
   </script>
 
 <script>document.documentElement.dir = 'rtl'; document.documentElement.lang = 'he';</script>

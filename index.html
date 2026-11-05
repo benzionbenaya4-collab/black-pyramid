@@ -2,9 +2,10 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8">
+  <meta name="build" content="65697ea">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>משמר הפירמידה השחורה</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=54e2fd79">
   <script>
   // on-screen errors instead of a blank page (also catches files that fail to load)
   (function () {
@@ -16,19 +17,34 @@
         el.innerHTML = '<b>אירעה שגיאה.</b> צלמו את ההודעה הזאת ושלחו אותה, כדי שאפשר יהיה לתקן:<pre style="white-space:pre-wrap;direction:ltr;text-align:left;margin:8px 0 0"></pre>';
         (document.body || document.documentElement).appendChild(el);
       }
-      el.querySelector('pre').textContent += msg + '\n[' + navigator.userAgent + ']\n';
+      el.querySelector('pre').textContent += msg + '\n[build ' + ((document.querySelector('meta[name=build]') || {}).content || '?') + '] [' + navigator.userAgent + ']\n';
     }
     window.addEventListener('error', function (e) { show((e.message || 'load error') + ' @ ' + (e.filename || (e.target && (e.target.src || e.target.href)) || '') + ':' + (e.lineno || '')); }, true);
     window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)); });
   })();
   </script>
   <script type="importmap">
-  {
-    "imports": {
-      "three": "./vendor/three/build/three.module.js",
-      "three/addons/": "./vendor/three/addons/"
-    }
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/addons/",
+    "./src/cinema.js": "./src/cinema.js?v=36149444",
+    "./src/combat.js": "./src/combat.js?v=7e05d889",
+    "./src/controls.js": "./src/controls.js?v=02c4ccc1",
+    "./src/editor.js": "./src/editor.js?v=936047cc",
+    "./src/endings.js": "./src/endings.js?v=73b9eb55",
+    "./src/glyphs.js": "./src/glyphs.js?v=389e72b1",
+    "./src/golem.js": "./src/golem.js?v=77059493",
+    "./src/main.js": "./src/main.js?v=165a716f",
+    "./src/movies.js": "./src/movies.js?v=e964fd04",
+    "./src/platform.js": "./src/platform.js?v=36b5d07a",
+    "./src/screenplay-extra.js": "./src/screenplay-extra.js?v=08e639e7",
+    "./src/screenplay.js": "./src/screenplay.js?v=9238365b",
+    "./src/story.js": "./src/story.js?v=4140f313",
+    "./src/util.js": "./src/util.js?v=85ddd378",
+    "./src/world.js": "./src/world.js?v=6e39d9f5"
   }
+}
   </script>
 </head>
 <body>
@@ -106,6 +122,7 @@
         <a class="film-link" href="movies.html">🎬 לסרט של המשחק</a>
       </div>
       <p id="endings-found" class="note"></p>
+      <p id="build-id" class="note" style="opacity:.55;font-size:12px;direction:ltr"></p>
       <p id="pad-note" class="note hidden">🎮 בקר מחובר: מקל שמאלי לבחירה, A לאישור.</p>
     </div>
   </div>
@@ -185,6 +202,6 @@
     </div>
   </div>
 
-  <script type="module" src="src/main.js"></script>
+  <script type="module" src="src/main.js?v=165a716f"></script>
 </body>
 </html>

@@ -14,7 +14,7 @@ import { createCombat, ARENA } from './combat.js';
 import { createStory, defaultFlags, GATE_HOUR } from './story.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
 import { createControls, ACTIONS, keyName, padName, MOVE_OPTS, LOOK_OPTS, SPEED_OPTS } from './controls.js';
-import { watchContext, createRenderGuard, quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
+import { BUILD, watchContext, createRenderGuard, quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 // ================================================================ constants
 const REAL_DURATION = 2 * 60 * 60;   // 2 real hours of play (seconds)
@@ -36,7 +36,8 @@ const store = {
 };
 
 // ================================================================ renderer / scene
-const Q = quality();            // high on computers, lighter automatically on phones and consoles
+const Q = quality();
+document.getElementById('build-id').textContent = `version ${BUILD} · ${Q.level}${Q.lowMem ? ' · safe ' + Q.lowMem : ''}`;            // high on computers, lighter automatically on phones and consoles
 setupMobile();
 if (!checkWebGL()) throw new Error('WebGL is not available');
 const renderer = new (Q.webgl1 ? THREE.WebGL1Renderer : THREE.WebGLRenderer)({ antialias: Q.level === 'pc', powerPreference: 'high-performance' });

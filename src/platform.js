@@ -18,7 +18,9 @@ const PROFILES = {
   phone: { pixelRatio: 2, minRatio: 1, msaa: 4, halfFloat: true, painter: 2, bloom: true, shadow: 1024, groundSeg: 240 },
 };
 const MEM_KEY = `blackPyramid.lowMem.${device}`;
-export function lowMem() { try { return +localStorage.getItem(MEM_KEY) || 0; } catch { return 0; } }
+// Xbox starts in the stable safe mode (WebGL1, lighter effects) until we know more about its GPU (diag.html)
+const DEFAULT_SAFE = isConsole ? 2 : 0;
+export function lowMem() { try { const v = localStorage.getItem(MEM_KEY); return v === null ? DEFAULT_SAFE : +v || 0; } catch { return DEFAULT_SAFE; } }
 export function quality() {
   try { localStorage.removeItem('blackPyramid.quality'); } catch { /* old manual setting is no longer used */ }
   const p = { ...PROFILES[device] }, lm = lowMem();
@@ -128,14 +130,14 @@ export function installErrorOverlay() {
       el.innerHTML = '<b>אירעה שגיאה.</b> צלם את ההודעה הזאת ושלח אותה, כדי שאפשר יהיה לתקן:<pre style="white-space:pre-wrap;direction:ltr;text-align:left;margin:8px 0 0"></pre>';
       document.body.appendChild(el);
     }
-    el.querySelector('pre').textContent += `${msg}\n[${UA}]\n`;
+    el.querySelector('pre').textContent += `${msg}\n[build ${BUILD}] [${UA}]\n`;
   };
   addEventListener('error', (e) => show(`${e.message || e} @ ${e.filename || ''}:${e.lineno || ''}`));
   addEventListener('unhandledrejection', (e) => show(`Promise: ${e.reason && (e.reason.stack || e.reason.message) || e.reason}`));
   return show;
 }
 /** true if the browser can draw 3D; otherwise shows a clear message */
-export const BUILD = '2026-11-05-d';
+export const BUILD = document.querySelector('meta[name=build]')?.content || 'dev';
 export function checkWebGL() {
   let reason = '';
   for (const type of ['webgl2', 'webgl', 'experimental-webgl']) {
@@ -147,7 +149,7 @@ export function checkWebGL() {
   }
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#140a02;color:#f6e7c8;font:22px/1.6 Arial,sans-serif;text-align:center;padding:24px;direction:rtl;z-index:100';
-  const crashed = lowMem() > 0;
+  let crashed = false; try { crashed = localStorage.getItem(MEM_KEY) !== null; } catch { /* no storage */ }
   el.innerHTML = (crashed
     ? '<div><b>הגרפיקה נתקעה בפעם הקודמת, והדפדפן חסם זמנית תלת-ממד.</b><br>סגרו את הדפדפן <b>לגמרי</b> ופתחו אותו מחדש. המשחק יעלה במצב בטוח.</div>'
     : '<div><b>הדפדפן לא מצליח להפעיל גרפיקה תלת-ממדית (WebGL) כרגע.</b></div>')
