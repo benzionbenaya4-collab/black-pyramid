@@ -12,7 +12,7 @@ import { createGolem } from './golem.js';
 import { loadDesign } from './editor.js';
 import { buildShadowKing, ARENA } from './combat.js';
 import { buildNefira, buildHuman, buildTamunCamp, buildKeeper, buildTablet, buildScarab, NPC_POS, SPEAKERS, TABLETS, MEMORIES } from './story.js';
-import { CHAPTERS } from './screenplay.js';
+import { CHAPTERS, lineId } from './screenplay.js';
 import { EXTRA, EXTRA2 } from './screenplay-extra.js';
 import { MAT } from './util.js';
 
@@ -213,8 +213,24 @@ function loadVoices() {
 if (hasTTS) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
 $('voice-m').onchange = (e) => { choice.m = heVoices[+e.target.value] || choice.m; };
 $('voice-f').onchange = (e) => { choice.f = heVoices[+e.target.value] || choice.f; };
+// pre-generated voice files (tools/make_voices.py) are used when they exist; otherwise the browser's voices
+let AUDIO = null, curAudio = null;
+fetch('audio/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => {
+  if (m && Object.keys(m).length) { AUDIO = m; $('voice-note').textContent = 'הסרט מדובב: לכל דמות קול משלה.'; document.querySelector('.voices')?.classList.add('hidden'); }
+}).catch(() => {});
+function playFile(id) {
+  return new Promise((res) => {
+    const a = new Audio(`audio/${id}.mp3`); curAudio = a;
+    let done = false;
+    const fin = () => { if (done) return; done = true; clearTimeout(to); if (curAudio === a) curAudio = null; finishSpeech = null; res(); };
+    const to = setTimeout(fin, (AUDIO[id] || 10) * 1000 + 8000);
+    a.onended = fin; a.onerror = fin; finishSpeech = () => { a.pause(); fin(); };
+    a.play().catch(fin);
+  });
+}
 let finishSpeech = null;
 function speak(sp, text) {
+  if (voiceOn && AUDIO && AUDIO[lineId(sp, text)] !== undefined) return playFile(lineId(sp, text));
   return new Promise((res) => {
     if (!hasTTS || !voiceOn || !heVoices.length) { res(); return; }
     const cfg = VOICE[sp] || VOICE.narrator, u = new SpeechSynthesisUtterance(text);
@@ -241,6 +257,7 @@ function skipBeat() { waiters.splice(0).forEach((w) => w.res()); if (hasTTS) spe
 function setPaused(p) {
   paused = p; $('btn-pause').textContent = p ? '▶ המשך' : '⏸ עצור';
   if (hasTTS) { if (p) speechSynthesis.pause(); else speechSynthesis.resume(); }
+  if (curAudio) { if (p) curAudio.pause(); else curAudio.play().catch(() => {}); }
 }
 
 // ================================================================ camera shots
@@ -364,7 +381,10 @@ const SCENES = CHAPTERS.map((c) => {
   for (const ins of [...(EXTRA[c.id] || []), ...(EXTRA2[c.id] || [])].sort((a, b) => b.at - a.at)) beats.splice(ins.at, 0, ...ins.beats);
   return { ...c, beats };
 });
-const beatDur = (b) => Math.max(b.w ?? (b.s === 'narrator' ? 10 : (b.t ? 6 : 12)), b.t ? b.t.length * 0.085 + 1.8 : 0);
+const beatDur = (b) => {
+  const spoken = b.t ? (AUDIO && AUDIO[lineId(b.s, b.t)] !== undefined ? AUDIO[lineId(b.s, b.t)] + 0.8 : b.t.length * 0.085 + 1.8) : 0;
+  return Math.max(b.w ?? (b.s === 'narrator' ? 10 : (b.t ? 6 : 12)), spoken);
+};
 const TRANSITION = 14;
 const sceneDur = SCENES.map((sc) => TRANSITION + sc.beats.reduce((a, b) => a + beatDur(b) + 1.3, 0));
 const TOTAL = sceneDur.reduce((a, b) => a + b, 0);

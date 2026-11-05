@@ -81,3 +81,14 @@ desert-pyramid/
 ├── tools/build_site.py   בונה את site.html לגרסת האתר
 └── vendor/three/     Three.js (רישיון MIT)
 ```
+
+## הסרט: "משמר הפירמידה השחורה" (movies.html)
+סרט באורך מלא, כשעה וחצי, שרץ בזמן אמת במנוע של המשחק, עם כתוביות ודיבוב.
+- **בלי קבצי קול:** הסרט משתמש בקולות העברית של הדפדפן. הכי טוב ב-Microsoft Edge.
+- **עם קבצי קול (קוד פתוח, חינם):** מייצרים קובץ לכל משפט עם מודל העברית החינמי של Meta (MMS-TTS), ונותנים לכל דמות צליל משלה עם ffmpeg:
+  ```bash
+  pip install torch transformers soundfile uroman
+  node tools/export_lines.mjs
+  python3 tools/make_voices.py
+  ```
+  הקבצים נוצרים בתיקייה `audio/`, והסרט מזהה אותם לבד. צריך גישה לאינטרנט אל huggingface.co.
