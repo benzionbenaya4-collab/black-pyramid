@@ -61,13 +61,12 @@
       <div class="keys">F / לחיצה: קרן שמש · <span id="burst-cd">R: מוכן</span> · רווח: קפוץ מעל גלי ההלם</div>
     </div>
     <div id="touch" class="hidden">
-      <div id="joy"><div id="joy-knob"></div></div>
+      <div id="joy-zone"><div id="joy"><div id="joy-knob"></div></div><div id="joy-hint">גרור כאן כדי ללכת · עד הסוף = ריצה</div></div>
       <div id="tbtns">
-        <button id="t-e" type="button">E</button>
-        <button id="t-jump" type="button">⤒</button>
-        <button id="t-run" type="button">ריצה</button>
-        <button id="t-fire" type="button" class="fight-only">☀</button>
-        <button id="t-burst" type="button" class="fight-only">✸</button>
+        <button id="t-y" type="button" class="fight-only" aria-label="גל אור"><b>Y</b><i>✸</i></button>
+        <button id="t-x" type="button" class="fight-only" aria-label="קרן שמש"><b>X</b><i>☀</i></button>
+        <button id="t-a" type="button" aria-label="פעולה"><b>A</b><i>✋</i></button>
+        <button id="t-b" type="button" aria-label="קפיצה"><b>B</b><i>⤒</i></button>
       </div>
     </div>
     <button id="btn-journal" type="button">📜 יומן (J)</button>
@@ -105,11 +104,6 @@
         <a class="film-link" href="movies.html">🎬 לסרט של המשחק</a>
       </div>
       <p id="endings-found" class="note"></p>
-      <label class="note quality">איכות גרפיקה:
-        <select id="quality">
-          <option value="auto">אוטומטית</option><option value="high">גבוהה</option><option value="medium">בינונית</option><option value="low">נמוכה (קונסולות וטלפונים חלשים)</option>
-        </select>
-      </label>
       <p id="pad-note" class="note hidden">🎮 בקר מחובר: מקל שמאלי לבחירה, A לאישור.</p>
     </div>
   </div>

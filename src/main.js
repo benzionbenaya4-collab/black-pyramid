@@ -13,7 +13,7 @@ import { createCinema } from './cinema.js';
 import { createCombat, ARENA } from './combat.js';
 import { createStory, defaultFlags, GATE_HOUR } from './story.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
-import { quality, qualityChoice, setQualityChoice, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
+import { quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 // ================================================================ constants
 const REAL_DURATION = 2 * 60 * 60;   // 2 real hours of play (seconds)
@@ -38,7 +38,7 @@ const store = {
 const Q = quality();            // high on computers, lighter automatically on phones and consoles
 setupMobile();
 if (!checkWebGL()) throw new Error('WebGL is not available');
-const renderer = new THREE.WebGLRenderer({ antialias: Q.level !== 'low', powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ antialias: Q.level === 'pc', powerPreference: 'high-performance' });
 renderer.setPixelRatio(Q.pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
@@ -101,11 +101,15 @@ composer.addPass(new ShaderPass({
     }`,
 }));
 
-addEventListener('resize', () => {
+function resize() {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight);
   painter.uniforms.res.value.set(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
-});
+}
+addEventListener('resize', resize);
+resize();
+// keeps the game smooth on every device: lowers/raises the render resolution by itself
+const autoRes = createAutoRes(Q, (r) => { renderer.setPixelRatio(r); resize(); });
 
 const hemi = new THREE.HemisphereLight(0xa8d8ff, 0xe0a070, 0.6);
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
@@ -239,34 +243,48 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 });
 renderer.domElement.addEventListener('wheel', (e) => { cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * 0.05, 24, 170); }, { passive: true });
 
-// touch controls: virtual joystick + buttons
-const touch = { x: 0, y: 0, active: false };
-if (!isConsole && (isMobile || matchMedia('(pointer: coarse)').matches)) {
+// touch controller (phones / tablets): a floating joystick appears where the left thumb touches;
+// pushing it all the way runs. Right side: A (action), B (jump), and in the fight X (sun ray) / Y (light wave).
+// Dragging anywhere else on the screen turns the camera.
+const touch = { x: 0, y: 0, active: false, run: false };
+const hasTouch = !isConsole && (isMobile || matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+if (hasTouch) {
   $('touch').classList.remove('hidden');
-  const joy = $('joy'), knob = $('joy-knob');
+  const zone = $('joy-zone'), joy = $('joy'), knob = $('joy-knob');
+  let id = null, cx = 0, cy = 0;
+  const R = 62;
   const setJoy = (e) => {
-    const r = joy.getBoundingClientRect();
-    let x = (e.clientX - r.left - r.width / 2) / (r.width / 2), y = (e.clientY - r.top - r.height / 2) / (r.height / 2);
+    let x = (e.clientX - cx) / R, y = (e.clientY - cy) / R;
     const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
-    touch.x = x; touch.y = y; knob.style.transform = `translate(${x * 37}px, ${y * 37}px)`;
+    touch.x = x; touch.y = y; touch.run = l > 0.92 && y < -0.5;
+    knob.style.transform = `translate(${x * 40}px, ${y * 40}px)`; joy.classList.toggle('run', touch.run);
   };
-  joy.addEventListener('pointerdown', (e) => { touch.active = true; joy.setPointerCapture(e.pointerId); setJoy(e); });
-  joy.addEventListener('pointermove', (e) => { if (touch.active) setJoy(e); });
-  const endJoy = () => { touch.active = false; touch.x = touch.y = 0; knob.style.transform = ''; };
-  joy.addEventListener('pointerup', endJoy); joy.addEventListener('pointercancel', endJoy);
-  const hold = (id, code, onDown) => {
-    const el = $(id);
-    el.addEventListener('pointerdown', (e) => { e.preventDefault(); keys[code] = true; onDown?.(); });
-    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, () => { keys[code] = false; });
+  zone.addEventListener('pointerdown', (e) => {
+    if (id !== null) return;
+    e.preventDefault(); id = e.pointerId; zone.setPointerCapture(id);
+    const zr = zone.getBoundingClientRect();
+    cx = e.clientX; cy = e.clientY;   // the stick jumps under the thumb
+    joy.style.left = `${cx - zr.left - 68}px`; joy.style.top = `${cy - zr.top - 68}px`; joy.style.bottom = 'auto';
+    joy.classList.add('on'); touch.active = true; setJoy(e);
+    $('joy-hint').style.display = 'none';
+  });
+  zone.addEventListener('pointermove', (e) => { if (e.pointerId === id) setJoy(e); });
+  const endJoy = (e) => {
+    if (e.pointerId !== id) return;
+    id = null; touch.active = false; touch.run = false; touch.x = touch.y = 0;
+    knob.style.transform = ''; joy.classList.remove('on', 'run'); joy.style.left = joy.style.top = joy.style.bottom = '';
   };
-  hold('t-e', 'KeyE', pressAction);
-  hold('t-jump', 'Space');
-  hold('t-fire', 'KeyF', () => combat.shoot());
-  hold('t-burst', 'KeyR', () => combat.burst());
-  $('t-run').addEventListener('pointerdown', (e) => { e.preventDefault(); keys.ShiftRight = !keys.ShiftRight; $('t-run').classList.toggle('on', !!keys.ShiftRight); });
+  zone.addEventListener('pointerup', endJoy); zone.addEventListener('pointercancel', endJoy);
+  const hold = (bid, code, onDown) => {
+    const el = $(bid);
+    el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); el.classList.add('down'); if (code) keys[code] = true; onDown?.(); navigator.vibrate?.(12); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, () => { el.classList.remove('down'); if (code) keys[code] = false; });
+  };
+  hold('t-a', 'KeyE', pressAction);
+  hold('t-b', 'Space');
+  hold('t-x', 'KeyF', () => combat.shoot());
+  hold('t-y', 'KeyR', () => combat.burst());
 }
-$('quality').value = qualityChoice();
-$('quality').onchange = (e) => { setQualityChoice(e.target.value); location.reload(); };
 $('btn-journal').addEventListener('click', () => toggleJournal());
 $('btn-design').addEventListener('click', () => editor.open());
 $('btn-design-title').addEventListener('click', () => editor.open());
@@ -503,7 +521,7 @@ function updatePlaying(dt) {
     if (pad.connected) { fwdIn += -pad.ly; turnIn += -pad.lx; }
   }
   fwdIn = THREE.MathUtils.clamp(fwdIn, -1, 1); turnIn = THREE.MathUtils.clamp(turnIn, -1, 1);
-  const running = (keys.ShiftLeft || keys.ShiftRight || pad.rt > 0.4 || pad.isDown(BTN.LS)) && fwdIn > 0;
+  const running = (keys.ShiftLeft || keys.ShiftRight || touch.run || pad.rt > 0.4 || pad.isDown(BTN.LS)) && fwdIn > 0;
   player.turn = THREE.MathUtils.damp(player.turn || 0, turnIn, 10, dt);
   player.facing += player.turn * TURN * (running ? 0.75 : 1) * dt;
   const target = fwdIn > 0 ? (running ? RUN : WALK) * fwdIn : fwdIn * WALK * 0.55;
@@ -620,9 +638,11 @@ function frame() {
   requestAnimationFrame(frame);
   const rawDt = clock.getDelta();
   const dt = Math.min(rawDt, 0.05);
+  autoRes();
   holdDtNow = Math.min(rawDt, 0.5);   // real time for hold-to-act and messages, even on slow machines
   t += dt;
   handlePad(dt);
+  document.body.classList.toggle('touch-live', hasTouch && !pad.connected && ((phase === 'playing' && !story.busy) || phase === 'fight') && $('journal').classList.contains('hidden') && $('editor').classList.contains('hidden'));
 
   if (phase === 'playing' || phase === 'fight') updatePlaying(dt);
   if (phase === 'fight') {
@@ -637,7 +657,7 @@ function frame() {
   if (phase === 'playing' || phase === 'choice') {
     if (phase === 'choice' && elapsedReal() >= REAL_DURATION) endGame('timeout');   // the clock never stops
     const s = story.update(dt, t, phase === 'playing' ? keys : {}, player.pos);
-    if (phase !== 'ended') { updateHUD(phase === 'playing' ? s.prompt : '', s.progress); drawMinimap(); }
+    if (phase !== 'ended') { updateHUD(phase === 'playing' ? ((pad.connected || hasTouch) ? s.prompt.replace('<b>E</b>', '<b>A</b>') : s.prompt) : '', s.progress); drawMinimap(); }
     saveTimer += dt; if (saveTimer > 2) { saveTimer = 0; save(); }
     if (toastTimer > 0) { toastTimer -= holdDtNow; if (toastTimer <= 0) $('toast').classList.add('hidden'); }
   }

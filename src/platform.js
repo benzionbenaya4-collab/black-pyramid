@@ -4,26 +4,37 @@ export const isXbox = /Xbox/i.test(UA);
 export const isPlayStation = /PlayStation/i.test(UA);
 export const isSwitch = /Nintendo/i.test(UA);
 export const isConsole = isXbox || isPlayStation || isSwitch;
-export const isMobile = !isConsole && (/Android|iPhone|iPad|iPod|Mobile/i.test(UA) || (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900));
+export const isMobile = !isConsole && (/Android|iPhone|iPad|iPod|Mobile/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1) || (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900));
 
-// ================================================================ quality levels
-const QKEY = 'blackPyramid.quality';
-export const QUALITY_PRESETS = {
-  high: { pixelRatio: 1.75, msaa: 4, halfFloat: true, painter: 3, bloom: true, shadow: 2048, groundSeg: 360 },
-  medium: { pixelRatio: 1.25, msaa: 0, halfFloat: true, painter: 2, bloom: true, shadow: 1024, groundSeg: 260 },
-  low: { pixelRatio: 1, msaa: 0, halfFloat: false, painter: 0, bloom: false, shadow: 1024, groundSeg: 180 },
+// ================================================================ automatic per-device graphics (no menu: the game detects the device)
+// Every device keeps the full look (bloom + painterly pass); only the internal resolution is tuned,
+// and it keeps adjusting itself while playing so the frame rate stays smooth.
+export const device = isConsole ? 'console' : isMobile ? 'phone' : 'pc';
+const PROFILES = {
+  pc: { pixelRatio: 1.75, minRatio: 0.85, msaa: 4, halfFloat: true, painter: 3, bloom: true, shadow: 2048, groundSeg: 360 },
+  console: { pixelRatio: 1, minRatio: 0.6, msaa: 0, halfFloat: true, painter: 2, bloom: true, shadow: 2048, groundSeg: 300 },
+  phone: { pixelRatio: 1.5, minRatio: 0.6, msaa: 0, halfFloat: true, painter: 2, bloom: true, shadow: 1024, groundSeg: 240 },
 };
-export function qualityChoice() { try { return localStorage.getItem(QKEY) || 'auto'; } catch { return 'auto'; } }
-export function setQualityChoice(v) { try { localStorage.setItem(QKEY, v); } catch { /* ignore */ } }
-export function autoLevel() {
-  if (isConsole) return 'low';
-  if (isMobile) return (navigator.deviceMemory && navigator.deviceMemory <= 4) ? 'low' : 'medium';
-  return 'high';
-}
 export function quality() {
-  const c = qualityChoice();
-  const level = QUALITY_PRESETS[c] ? c : autoLevel();
-  return { level, ...QUALITY_PRESETS[level], pixelRatio: Math.min(window.devicePixelRatio || 1, QUALITY_PRESETS[level].pixelRatio) };
+  try { localStorage.removeItem('blackPyramid.quality'); } catch { /* old manual setting is no longer used */ }
+  const p = PROFILES[device];
+  return { level: device, ...p, pixelRatio: Math.min(window.devicePixelRatio || 1, p.pixelRatio) };
+}
+/** Dynamic resolution: call tick() every frame; apply(ratio) is called when the render scale should change. */
+export function createAutoRes(Q, apply) {
+  let r = Q.pixelRatio, acc = 0, n = 0, warm = 3, last = performance.now();
+  return function tick() {
+    const now = performance.now(), d = (now - last) / 1000; last = now;
+    if (d > 0.25 || document.hidden) return;   // tab switch / loading hitch: ignore
+    acc += d; n++;
+    if (acc < 1.2) return;
+    const ms = (acc / n) * 1000; acc = 0; n = 0;
+    if (warm > 0) { warm--; return; }
+    let nr = r;
+    if (ms > 22) nr = Math.max(Q.minRatio, r - (ms > 34 ? 0.2 : 0.1));
+    else if (ms < 15) nr = Math.min(Q.pixelRatio, r + 0.05);
+    if (Math.abs(nr - r) > 0.01) { r = nr; apply(r); }
+  };
 }
 
 // ================================================================ errors on screen instead of a blank page

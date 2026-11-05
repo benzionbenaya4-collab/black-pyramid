@@ -60,18 +60,30 @@ button.ghost { background: transparent; color: #f6e7c8; border-color: #8a6a3a; }
 #ending-list .got { color: #ffd36a; background: rgba(255, 200, 80, .12); }
 #ending-list .cur { outline: 1px solid #ffd36a; }
 
-/* touch controls (phones / tablets) */
-#touch { position: absolute; inset: 0; pointer-events: none; }
-#joy { position: absolute; left: calc(24px + env(safe-area-inset-left, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px));
-  width: 130px; height: 130px; border-radius: 50%; background: rgba(20, 12, 4, .45); border: 2px solid rgba(255, 200, 90, .6);
-  pointer-events: auto; touch-action: none; }
-#joy-knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+/* touch controller (phones / tablets): floating joystick on the left, Xbox-style buttons on the right */
+#touch { position: absolute; inset: 0; pointer-events: none; transition: opacity .25s; }
+body:not(.touch-live) #touch { opacity: 0; }
+body:not(.touch-live) #touch * { pointer-events: none !important; }
+#joy-zone { position: absolute; left: 0; bottom: 0; width: 42%; height: 62%; pointer-events: auto; touch-action: none; }
+#joy { position: absolute; left: calc(36px + env(safe-area-inset-left, 0px)); bottom: calc(36px + env(safe-area-inset-bottom, 0px));
+  width: 136px; height: 136px; margin: 0; border-radius: 50%; background: radial-gradient(rgba(20, 12, 4, .25), rgba(20, 12, 4, .55));
+  border: 2px solid rgba(255, 200, 90, .55); opacity: .55; transition: opacity .15s; pointer-events: none; }
+#joy.on { opacity: 1; transition: none; }
+#joy.run { border-color: #ffd86a; box-shadow: 0 0 18px rgba(255, 200, 80, .7); }
+#joy-knob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%;
   background: radial-gradient(#ffe08a, #d99a2b); box-shadow: 0 0 12px rgba(255, 190, 60, .6); }
-#tbtns { position: absolute; right: calc(24px + env(safe-area-inset-right, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px));
-  display: grid; grid-template-columns: repeat(2, 64px); gap: 12px; pointer-events: auto; touch-action: none; }
-#tbtns button { width: 64px; height: 64px; padding: 0; border-radius: 50%; font-size: 20px; }
-#tbtns #t-run { grid-column: span 2; width: 140px; border-radius: 32px; font-size: 16px; }
-#tbtns #t-run.on { filter: brightness(1.3); box-shadow: 0 0 14px #ffcf5c; }
+#joy-hint { position: absolute; left: calc(24px + env(safe-area-inset-left, 0px)); bottom: 8px; font-size: 11px; color: rgba(255, 236, 200, .7); text-shadow: 0 1px 2px #000; }
+#tbtns { position: absolute; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  width: 196px; height: 196px; pointer-events: none; }
+#tbtns button { position: absolute; width: 66px; height: 66px; padding: 0; border-radius: 50%; pointer-events: auto; touch-action: none;
+  background: radial-gradient(circle at 35% 30%, rgba(60, 40, 18, .85), rgba(16, 10, 4, .85)); border: 2px solid var(--c); color: #fff3da;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; box-shadow: 0 0 10px rgba(0, 0, 0, .5); }
+#tbtns button b { font-size: 20px; color: var(--c); } #tbtns button i { font-style: normal; font-size: 13px; margin-top: 2px; }
+#tbtns button.down { transform: scale(.92); filter: brightness(1.4); }
+#t-a { --c: #6fdc6f; left: 65px; bottom: 0; } #t-b { --c: #ff6a5a; right: 0; bottom: 65px; }
+#t-x { --c: #5ab0ff; left: 0; bottom: 65px; } #t-y { --c: #ffd84a; left: 65px; top: 0; }
+#tbtns .fight-only { display: none; }
+body.fight #tbtns .fight-only { display: flex; }
 @media (pointer: coarse) { #help { display: none; } #objectives { font-size: 13px; max-width: 46vw; } #minimap { width: 120px; height: 120px; } #clock { top: 8px; min-width: 0; padding: 6px 12px; } #clock .row { font-size: 14px; } }
 @media (max-width: 700px) {
   #minimap { width: 92px; height: 92px; top: 8px; left: 8px; }
@@ -164,8 +176,6 @@ body.cine #dialog { bottom: 12vh; z-index: 6; }
 @keyframes hurt { from { opacity: 1; } to { opacity: 0; } }
 #boss-shout { position: fixed; top: 22vh; left: 50%; transform: translateX(-50%); z-index: 6; font-size: 26px; font-weight: bold; color: #ff6a7a;
   text-shadow: 0 0 14px #ff1a3a, 0 2px 6px #000; text-align: center; width: min(900px, calc(100vw - 32px)); pointer-events: none; }
-#tbtns .fight-only { display: none; }
-body.fight #tbtns .fight-only { display: block; }
 @media (max-width: 700px) { #hpbar { width: calc(100vw - 32px); bottom: 210px; } #cine-caption { font-size: 16px; } #boss-shout { font-size: 19px; } }
 
 .film-link { display: inline-block; font-size: 18px; padding: 10px 24px; border-radius: 8px; color: #f6e7c8; border: 1px solid #8a6a3a; background: transparent; text-decoration: none; }
@@ -177,9 +187,14 @@ body.fight #tbtns .fight-only { display: block; }
 @keyframes rot { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
 @media (orientation: portrait) { body.mobile #rotate { display: flex; } }
 .pad-focus { outline: 3px solid #fff !important; outline-offset: 3px; box-shadow: 0 0 16px #ffd36a !important; }
-.quality { display: block; margin-top: 10px; }
-.quality select { font: inherit; background: #120a03; color: #f6e7c8; border: 1px solid #8a6a3a; border-radius: 6px; padding: 3px 6px; }
 #help-pad { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; background: rgba(0,0,0,.5); padding: 5px 12px; border-radius: 6px; white-space: nowrap; }
+/* phones: HUD buttons move to the top-left corner under the map, HP bar sits above the joystick area at the top */
+body.mobile #btn-journal, body.mobile #btn-design { top: calc(136px + env(safe-area-inset-top, 0px)); bottom: auto; font-size: 12px; padding: 5px 9px; }
+body.mobile #btn-journal { left: calc(8px + env(safe-area-inset-left, 0px)); }
+body.mobile #btn-design { left: calc(98px + env(safe-area-inset-left, 0px)); }
+body.mobile #hpbar { bottom: auto; top: 128px; right: auto; left: 50%; transform: translateX(-50%); width: min(300px, 40vw); }
+body.mobile #bossbar { top: 92px; width: min(460px, 50vw); }
+body.mobile #hpbar .keys { display: none; }
 
 </style>
   <script>
@@ -238,13 +253,12 @@ body.fight #tbtns .fight-only { display: block; }
       <div class="keys">F / לחיצה: קרן שמש · <span id="burst-cd">R: מוכן</span> · רווח: קפוץ מעל גלי ההלם</div>
     </div>
     <div id="touch" class="hidden">
-      <div id="joy"><div id="joy-knob"></div></div>
+      <div id="joy-zone"><div id="joy"><div id="joy-knob"></div></div><div id="joy-hint">גרור כאן כדי ללכת · עד הסוף = ריצה</div></div>
       <div id="tbtns">
-        <button id="t-e" type="button">E</button>
-        <button id="t-jump" type="button">⤒</button>
-        <button id="t-run" type="button">ריצה</button>
-        <button id="t-fire" type="button" class="fight-only">☀</button>
-        <button id="t-burst" type="button" class="fight-only">✸</button>
+        <button id="t-y" type="button" class="fight-only" aria-label="גל אור"><b>Y</b><i>✸</i></button>
+        <button id="t-x" type="button" class="fight-only" aria-label="קרן שמש"><b>X</b><i>☀</i></button>
+        <button id="t-a" type="button" aria-label="פעולה"><b>A</b><i>✋</i></button>
+        <button id="t-b" type="button" aria-label="קפיצה"><b>B</b><i>⤒</i></button>
       </div>
     </div>
     <button id="btn-journal" type="button">📜 יומן (J)</button>
@@ -282,11 +296,6 @@ body.fight #tbtns .fight-only { display: block; }
         <a class="film-link" href="movies.html">🎬 לסרט של המשחק</a>
       </div>
       <p id="endings-found" class="note"></p>
-      <label class="note quality">איכות גרפיקה:
-        <select id="quality">
-          <option value="auto">אוטומטית</option><option value="high">גבוהה</option><option value="medium">בינונית</option><option value="low">נמוכה (קונסולות וטלפונים חלשים)</option>
-        </select>
-      </label>
       <p id="pad-note" class="note hidden">🎮 בקר מחובר: מקל שמאלי לבחירה, A לאישור.</p>
     </div>
   </div>

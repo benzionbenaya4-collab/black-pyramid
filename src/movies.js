@@ -15,7 +15,7 @@ import { buildNefira, buildHuman, buildTamunCamp, buildKeeper, buildTablet, buil
 import { CHAPTERS, lineId } from './screenplay.js';
 import { EXTRA, EXTRA2 } from './screenplay-extra.js';
 import { MAT } from './util.js';
-import { quality, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
+import { quality, createAutoRes, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 const $ = (id) => document.getElementById(id);
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -24,7 +24,7 @@ const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const Q = quality();
 setupMobile();
 if (!checkWebGL()) throw new Error('WebGL is not available');
-const renderer = new THREE.WebGLRenderer({ antialias: Q.level !== 'low', powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ antialias: Q.level === 'pc', powerPreference: 'high-performance' });
 renderer.setPixelRatio(Q.pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -75,11 +75,15 @@ composer.addPass(new ShaderPass({
       gl_FragColor = vec4(clamp(c, 0.0, 1.0) * mix(0.68, 1.0, v), 1.0);
     }`,
 }));
-addEventListener('resize', () => {
+function resize() {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight);
   painter.uniforms.res.value.set(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
-});
+}
+addEventListener('resize', resize);
+resize();
+// keeps the game smooth on every device: lowers/raises the render resolution by itself
+const autoRes = createAutoRes(Q, (r) => { renderer.setPixelRatio(r); resize(); });
 const hemi = new THREE.HemisphereLight(0xa8d8ff, 0xe0a070, 0.6);
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
 sun.castShadow = true; sun.shadow.mapSize.set(Q.shadow, Q.shadow);
@@ -501,6 +505,7 @@ function handlePad(dt) {
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
+  autoRes();
   handlePad(dt);
   if (!paused) {
     t += dt;
