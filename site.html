@@ -168,6 +168,9 @@ body.cine #dialog { bottom: 12vh; z-index: 6; }
 body.fight #tbtns .fight-only { display: block; }
 @media (max-width: 700px) { #hpbar { width: calc(100vw - 32px); bottom: 210px; } #cine-caption { font-size: 16px; } #boss-shout { font-size: 19px; } }
 
+.film-link { display: inline-block; font-size: 18px; padding: 10px 24px; border-radius: 8px; color: #f6e7c8; border: 1px solid #8a6a3a; background: transparent; text-decoration: none; }
+.film-link:hover { background: rgba(255, 210, 110, .12); }
+
 </style>
   <script type="importmap">
   {
@@ -247,6 +250,7 @@ body.fight #tbtns .fight-only { display: block; }
         <button id="btn-continue" class="hidden">המשך משחק</button>
         <button id="btn-new">משחק חדש</button>
         <button id="btn-design-title" class="ghost" type="button">🎨 עיצוב הדמות</button>
+        <a class="film-link" href="movies.html">🎬 לסרט של המשחק</a>
       </div>
       <p id="endings-found" class="note"></p>
     </div>

@@ -1,0 +1,100 @@
+<title>קולנוע כם-אשר</title>
+  <style>
+:root { color-scheme: dark; background: #000; }
+:root { color-scheme: dark; --ink: #f6e7c8; --gold: #ffcf5c; --panel: rgba(18, 10, 3, .82); --line: #c99a3a; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--ink); font-family: "Segoe UI", "Arial Hebrew", Arial, sans-serif; }
+#stage canvas { display: block; }
+.hidden { display: none !important; }
+button { font: inherit; font-size: 17px; padding: 9px 20px; border-radius: 8px; cursor: pointer; color: #1a0f02; background: linear-gradient(#ffd770, #d99a2b); border: 1px solid #ffe7a3; }
+button:hover { filter: brightness(1.1); }
+button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+button.ghost { background: rgba(0, 0, 0, .35); color: var(--ink); border-color: #8a6a3a; }
+#fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 1.2s ease; z-index: 8; }
+#fade.on { opacity: 1; }
+
+#library { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: radial-gradient(ellipse at center, rgba(20, 10, 0, .2), rgba(0, 0, 0, .75)); overflow-y: auto; }
+.poster { max-width: 680px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px 30px; box-shadow: 0 0 40px rgba(255, 180, 50, .2); }
+.eyebrow { letter-spacing: .2em; font-size: 13px; opacity: .8; margin: 0 0 6px; }
+h1 { margin: 0 0 10px; color: var(--gold); font-size: clamp(30px, 6vw, 46px); text-shadow: 0 0 18px #ff9a1e; text-wrap: balance; }
+.tagline { font-size: 18px; margin: 0 0 6px; }
+.len { color: var(--gold); font-variant-numeric: tabular-nums; margin: 0 0 12px; }
+.story { line-height: 1.7; opacity: .92; }
+.buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 18px 0 14px; }
+.voices { text-align: right; background: rgba(0, 0, 0, .25); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
+.voices summary { cursor: pointer; }
+.voices label { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 8px 0; }
+.voices select { max-width: 60%; font: inherit; background: #120a03; color: var(--ink); border: 1px solid #8a6a3a; border-radius: 6px; padding: 4px; }
+.note { font-size: 13px; opacity: .8; line-height: 1.6; }
+
+#player .bar { position: fixed; left: 0; right: 0; height: 12vh; background: #000; z-index: 3; }
+#player .bar.top { top: 0; } #player .bar.bottom { bottom: 0; }
+#controls { position: fixed; top: 0; left: 0; right: 0; height: 12vh; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 0 16px; flex-wrap: wrap; opacity: .35; transition: opacity .3s; }
+#controls:hover, #controls:focus-within { opacity: 1; }
+#controls button { font-size: 14px; padding: 6px 12px; }
+#time { margin-inline-start: auto; font-variant-numeric: tabular-nums; font-size: 14px; direction: ltr; }
+#progress { position: fixed; left: 0; right: 0; bottom: 12vh; height: 3px; background: rgba(255, 255, 255, .12); z-index: 5; }
+#progress-fill { height: 100%; width: 0; background: var(--gold); }
+#subs { position: fixed; left: 50%; bottom: 1.6vh; transform: translateX(-50%); width: min(980px, calc(100vw - 32px)); z-index: 6; text-align: center; pointer-events: none; }
+#sub-name { font-weight: bold; font-size: 15px; margin-bottom: 2px; text-shadow: 0 2px 6px #000; }
+#sub-text { font-size: clamp(16px, 2.3vw, 23px); line-height: 1.45; color: #fff4dc; text-shadow: 0 2px 8px #000; }
+#sub-text.narr { font-style: italic; color: #f3e3c0; }
+#end-card { position: fixed; inset: 0; z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(0, 0, 0, .7); text-align: center; padding: 16px; }
+#end-card h2 { font-size: 48px; color: var(--gold); margin: 0; }
+@media (max-width: 700px) { #controls { height: auto; padding: 8px 12px; background: rgba(0,0,0,.6); opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { #fade { transition: none; } }
+
+</style>
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+
+<script>document.documentElement.dir = 'rtl'; document.documentElement.lang = 'he';</script>
+<div id="stage"></div>
+  <div id="fade"></div>
+
+  <!-- the poster screen -->
+  <main id="library">
+    <div class="poster">
+      <p class="eyebrow">קולנוע כם-אשר מציג</p>
+      <h1>משמר הפירמידה השחורה</h1>
+      <p class="tagline">סרט באורך מלא, בנוי כולו מהמנוע של המשחק. עם קריינות, דיבוב וכתוביות בעברית.</p>
+      <p id="film-len" class="len"></p>
+      <p class="story">לפני שלושת אלפים שנה כלא מלך הליקוי, סת'אר, את השמש בתוך פירמידה שחורה. עכשיו החותם נסדק, ומשמר החול, חארו, מתעורר ליום אחד אחרון:
+        עשרים וארבע שעות, ארבעה רסיסי שמש, שיירה אבודה, שומר עצמות שאוהב חידות, וצל אחד שמחכה בשער.</p>
+      <div class="buttons">
+        <button id="btn-play" type="button">▶ צפה בסרט</button>
+        <button id="btn-resume" type="button" class="ghost hidden">⏯ המשך מאיפה שעצרתי</button>
+      </div>
+      <details class="voices">
+        <summary>🔊 הגדרות קול</summary>
+        <label>קול גברי <select id="voice-m"></select></label>
+        <label>קול נשי <select id="voice-f"></select></label>
+        <button id="btn-test-voice" type="button" class="ghost">נסה קול</button>
+        <p id="voice-note" class="note"></p>
+      </details>
+      <p class="note">טיפ: הקולות הכי טבעיים בעברית הם של Microsoft Edge (אברי והילה). רווח: עצירה · חץ שמאלה: דילוג על משפט · Esc: חזרה.</p>
+    </div>
+  </main>
+
+  <!-- the player -->
+  <div id="player" class="hidden">
+    <div class="bar top"></div><div class="bar bottom"></div>
+    <div id="controls">
+      <button id="btn-back" type="button" class="ghost">✕ חזרה</button>
+      <button id="btn-pause" type="button">⏸ עצור</button>
+      <button id="btn-next" type="button" class="ghost">⏭ משפט הבא</button>
+      <button id="btn-scene" type="button" class="ghost">⏩ סצנה הבאה</button>
+      <button id="btn-voice" type="button" class="ghost">🔊 קול</button>
+      <span id="time"></span>
+    </div>
+    <div id="progress"><div id="progress-fill"></div></div>
+    <div id="subs" class="hidden"><div id="sub-name"></div><div id="sub-text"></div></div>
+    <div id="end-card" class="hidden">
+      <h2>סוף</h2>
+      <p>משמר הפירמידה השחורה. סרט שנבנה כולו מקוד: בלי תמונות, בלי קבצי וידאו ובלי הקלטות.</p>
+      <button id="btn-end-back" type="button">חזרה למסך הראשי</button>
+    </div>
+  </div>
+  <script type="module" src="src/movies.js"></script>

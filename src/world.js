@@ -641,7 +641,11 @@ function createCamp() {
       people.forEach((p, i) => { p.position.y = Math.abs(Math.sin(t * 4 + i)) * 0.5; });
     }
   }
-  return { group, update, rescue() { rescued = true; } };
+  function reset() {   // used by the movies to replay the storm
+    rescued = false; stormMat.opacity = 0.85; storm.visible = true; fireMat.opacity = 0; fireLight.intensity = 0;
+    people.forEach((p) => { p.position.y = 0; });
+  }
+  return { group, update, rescue() { rescued = true; }, reset };
 }
 
 // ================================================================ desert decor

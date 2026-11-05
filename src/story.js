@@ -29,14 +29,14 @@ export const SPEAKERS = {
   memory: { name: 'זיכרון עתיק', color: '#e8d7a8' },
 };
 
-const TABLETS = [
+export const TABLETS = [
   { x: -560, z: 600, text: '"השמש נולדת בשחר, ומי שזוכר את סדר האבנים יעיר אותה."' },
   { x: -880, z: -220, text: '"בצהריים היא עומדת גבוה. רק הסבלני יראה את פניה."' },
   { x: -150, z: -560, text: '"בשקיעה היא נחה בין עצמות החיה שבלעה את הירח."' },
   { x: 380, z: 760, text: '"בלילה היא ישנה, עד שהאחיות יחזירו לה את האור."' },
   { x: 860, z: -40, text: '"ארבעתן יחד יחתמו את השמש האפלה, או ישחררו אותה."' },
 ];
-const MEMORIES = [
+export const MEMORIES = [
   { x: 130, z: 860, text: 'אני זוכר ידיים. ידיים קטנות וחמות שלשו חול רטוב לאור הירח. "תתעורר", לחשה. "העיר צריכה אותך".' },
   { x: -450, z: -60, text: 'כם-אשר הייתה עיר של אלף גנים. נהר כחול זרם בה, ואני הייתי רק פסל חול בחצר המקדש, מקשיב לילדים צוחקים.' },
   { x: 300, z: 380, text: 'סת\'אר עמד על גג הארמון וצעק אל השמש: "לעולם לא תשקעי!". באותו לילה נולד החושך הראשון.' },
@@ -45,7 +45,7 @@ const MEMORIES = [
   { x: -940, z: 420, text: 'השמש התנפצה לארבעה. ראיתי את הרסיסים בורחים: אחד אל השחר, אחד אל הצהריים, אחד אל השקיעה ואחד אל הלילה.' },
   { x: 620, z: -620, text: 'נפירה נתנה לי את האור שבליבה והפכה לרוח. "כל 3000 שנה", אמרה, "תצטרך לבחור מחדש מי אתה".' },
 ];
-const NPC_POS = {
+export const NPC_POS = {
   nefira: new THREE.Vector3(0, 0, 222),
   tamun: new THREE.Vector3(-715, 0, 125),
   keeper: new THREE.Vector3(-232, 0, 800),
@@ -118,7 +118,7 @@ const cyl = (a, b, h, s = 12) => new THREE.CylinderGeometry(a, b, h, s);
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const sph = (r, w = 12, h = 8, ...x) => new THREE.SphereGeometry(r, w, h, ...x);
 
-function buildNefira() {
+export function buildNefira() {
   const b = new Batch();
   b.add(new THREE.ConeGeometry(1.7, 6, 16, 1, true), ghostMat, [0, 3, 0]);
   b.add(cyl(0.55, 0.8, 2.2, 12), ghostMat, [0, 6.6, 0]);
@@ -134,7 +134,7 @@ function buildNefira() {
   b.add(box(0.12, 0.9, 0.12), ghostGold, [1.9, 6.4, 1.2]); b.add(box(0.7, 0.12, 0.12), ghostGold, [1.9, 6.6, 1.2]);
   const g = b.build({ cast: false }); g.scale.setScalar(1.35); return g;
 }
-function buildHuman(robe, { beard = false, staff = false, scale = 1.3, turban = MAT.cloth } = {}) {
+export function buildHuman(robe, { beard = false, staff = false, scale = 1.3, turban = MAT.cloth } = {}) {
   const b = new Batch();
   b.add(new THREE.ConeGeometry(0.8, 2.7, 12), robe, [0, 1.35, 0]);
   b.add(cyl(0.48, 0.62, 0.25, 12), MAT.red, [0, 1.95, 0]);
@@ -150,7 +150,7 @@ function buildHuman(robe, { beard = false, staff = false, scale = 1.3, turban = 
   }
   const g = b.build(); g.scale.setScalar(scale); return g;
 }
-function buildTamunCamp() {
+export function buildTamunCamp() {
   const b = new Batch();
   b.add(new THREE.ConeGeometry(4, 4.2, 6, 1, true), MAT.cloth, [-7, 2.1, -5]);
   for (let k = 0; k < 6; k++) b.add(box(1.4, 0.15, 1.9), MAT.stonePale, [-2 + (k % 3) * 1.6, 0.1 + Math.floor(k / 3) * 0.16, 4], [0, k * 0.3, 0]);   // scrolls/tablets
@@ -160,7 +160,7 @@ function buildTamunCamp() {
   b.add(new THREE.ConeGeometry(0.8, 1.8, 8, 1, true), MAT.goldGlow, [0, 0.9, 7]);
   return b.build();
 }
-function buildKeeper() {
+export function buildKeeper() {
   const g = new THREE.Group();
   const b = new Batch();
   b.add(rockGeometry(1, 1, 31, 0.15), MAT.bone, [0, 0, 0], [0, 0, 0], [3.2, 2.8, 3.6]);
@@ -177,7 +177,7 @@ function buildKeeper() {
   }
   return { g, flames };
 }
-function buildTablet() {
+export function buildTablet() {
   const g = new THREE.Group();
   const b = new Batch();
   b.add(box(3, 2, 3), MAT.sandstone, [0, 1, 0]);
@@ -190,7 +190,7 @@ function buildTablet() {
   beam.position.y = 132; g.add(beam);
   return g;
 }
-function buildScarab() {
+export function buildScarab() {
   const b = new Batch();
   b.add(sph(1, 14, 10), MAT.gold, [0, 0, 0], [0, 0, 0], [0.9, 0.5, 1.2]);
   b.add(sph(0.45, 10, 8), MAT.gold, [0, 0.05, 1.25], [0, 0, 0], [1, 0.7, 0.8]);

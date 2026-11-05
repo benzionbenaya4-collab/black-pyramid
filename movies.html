@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>קולנוע כם-אשר</title>
+  <link rel="stylesheet" href="movies.css">
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="fade"></div>
+
+  <!-- the poster screen -->
+  <main id="library">
+    <div class="poster">
+      <p class="eyebrow">קולנוע כם-אשר מציג</p>
+      <h1>משמר הפירמידה השחורה</h1>
+      <p class="tagline">סרט באורך מלא, בנוי כולו מהמנוע של המשחק. עם קריינות, דיבוב וכתוביות בעברית.</p>
+      <p id="film-len" class="len"></p>
+      <p class="story">לפני שלושת אלפים שנה כלא מלך הליקוי, סת'אר, את השמש בתוך פירמידה שחורה. עכשיו החותם נסדק, ומשמר החול, חארו, מתעורר ליום אחד אחרון:
+        עשרים וארבע שעות, ארבעה רסיסי שמש, שיירה אבודה, שומר עצמות שאוהב חידות, וצל אחד שמחכה בשער.</p>
+      <div class="buttons">
+        <button id="btn-play" type="button">▶ צפה בסרט</button>
+        <button id="btn-resume" type="button" class="ghost hidden">⏯ המשך מאיפה שעצרתי</button>
+      </div>
+      <details class="voices">
+        <summary>🔊 הגדרות קול</summary>
+        <label>קול גברי <select id="voice-m"></select></label>
+        <label>קול נשי <select id="voice-f"></select></label>
+        <button id="btn-test-voice" type="button" class="ghost">נסה קול</button>
+        <p id="voice-note" class="note"></p>
+      </details>
+      <p class="note">טיפ: הקולות הכי טבעיים בעברית הם של Microsoft Edge (אברי והילה). רווח: עצירה · חץ שמאלה: דילוג על משפט · Esc: חזרה.</p>
+    </div>
+  </main>
+
+  <!-- the player -->
+  <div id="player" class="hidden">
+    <div class="bar top"></div><div class="bar bottom"></div>
+    <div id="controls">
+      <button id="btn-back" type="button" class="ghost">✕ חזרה</button>
+      <button id="btn-pause" type="button">⏸ עצור</button>
+      <button id="btn-next" type="button" class="ghost">⏭ משפט הבא</button>
+      <button id="btn-scene" type="button" class="ghost">⏩ סצנה הבאה</button>
+      <button id="btn-voice" type="button" class="ghost">🔊 קול</button>
+      <span id="time"></span>
+    </div>
+    <div id="progress"><div id="progress-fill"></div></div>
+    <div id="subs" class="hidden"><div id="sub-name"></div><div id="sub-text"></div></div>
+    <div id="end-card" class="hidden">
+      <h2>סוף</h2>
+      <p>משמר הפירמידה השחורה. סרט שנבנה כולו מקוד: בלי תמונות, בלי קבצי וידאו ובלי הקלטות.</p>
+      <button id="btn-end-back" type="button">חזרה למסך הראשי</button>
+    </div>
+  </div>
+  <script type="module" src="src/movies.js"></script>
+</body>
+</html>
