@@ -5,7 +5,8 @@ export const ACTIONS = [
   { id: 'back', name: 'הליכה אחורה', key: 'KeyS', pad: null },
   { id: 'left', name: 'סיבוב שמאלה', key: 'KeyA', pad: null },
   { id: 'right', name: 'סיבוב ימינה', key: 'KeyD', pad: null },
-  { id: 'run', name: 'ריצה', key: 'ShiftLeft', pad: 7 },
+  { id: 'walk', name: 'הליכה קדימה (כפתור בבקר)', key: null, pad: 6 },
+  { id: 'run', name: 'ריצה (בבקר: גם בלי מקל)', key: 'ShiftLeft', pad: 7 },
   { id: 'jump', name: 'קפיצה', key: 'Space', pad: 1 },
   { id: 'action', name: 'פעולה ושיחה', key: 'KeyE', pad: 0 },
   { id: 'journal', name: 'יומן', key: 'KeyJ', pad: 8 },
@@ -14,7 +15,7 @@ export const ACTIONS = [
 ];
 const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'L3 (לחיצה על מקל שמאלי)', 'R3 (לחיצה על מקל ימני)', '↑', '↓', '←', '→'];
 export const MOVE_OPTS = { left: 'מקל שמאלי', right: 'מקל ימני', dpad: 'חצים (D-pad)' };
-export const LOOK_OPTS = { right: 'מקל ימני', left: 'מקל שמאלי', none: 'כבוי' };
+export const LOOK_OPTS = { right: 'מקל ימני', left: 'מקל שמאלי', dpad: 'חצים (D-pad)', none: 'כבוי' };
 export const SPEED_OPTS = { 0.5: 'איטית', 1: 'רגילה', 1.6: 'מהירה' };
 export const DEADZONE_OPTS = { 0.15: 'קטן', 0.25: 'רגיל', 0.35: 'גדול', 0.45: 'גדול מאוד' };
 export function padName(i) { return i == null ? 'לפי הגדרת ההליכה' : PAD_NAMES[i] || `כפתור ${i}`; }
@@ -28,19 +29,23 @@ export function keyName(code) {
 function load() {
   try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
 }
-export function createControls() {
+export function createControls(opts = {}) {
   let saved = load();
+  // Xbox defaults (the player's own choice): the lower (right) stick walks, A also jumps, LT walks, RT runs
+  const defPad = (a) => (opts.console && a.id === 'jump' ? 0 : a.pad);
   const bind = {};
   const rebuild = () => {
-    for (const a of ACTIONS) bind[a.id] = { key: saved.keys?.[a.id] ?? a.key, pad: a.pad == null ? null : (saved.pads?.[a.id] ?? a.pad) };
+    for (const a of ACTIONS) bind[a.id] = { key: saved.keys?.[a.id] ?? a.key, pad: a.pad == null ? null : (saved.pads?.[a.id] ?? defPad(a)) };
   };
   rebuild();
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch { /* storage unavailable */ } };
   const ctl = {
     bind,
     touchSize: saved.touchSize || 1,
-    get padMove() { return saved.padMove || 'left'; },
-    get padLook() { return saved.padLook || 'right'; },
+    get padMove() { return saved.padMove || (opts.console ? 'right' : 'left'); },
+    get padLook() { return saved.padLook || (opts.console ? 'dpad' : 'right'); },
+    /** A does both: talk/act when something is near, otherwise jump */
+    get smartA() { return bind.jump.pad === bind.action.pad; },
     get invertY() { return !!saved.invertY; },
     get lookSpeed() { return saved.lookSpeed || 1; },
     get deadzone() { return saved.deadzone || 0.25; },
@@ -63,6 +68,7 @@ export function createControls() {
     lookAxes(gp) {
       const k = ctl.lookSpeed, iy = ctl.invertY ? -1 : 1;
       if (ctl.padLook === 'none') return [0, 0];
+      if (ctl.padLook === 'dpad') return [((gp.isDown(15) ? 1 : 0) - (gp.isDown(14) ? 1 : 0)) * k, ((gp.isDown(13) ? 1 : 0) - (gp.isDown(12) ? 1 : 0)) * k * iy];
       const [x, y] = ctl.padLook === 'left' ? [gp.lx, gp.ly] : [gp.rx, gp.ry];
       return [x * k, y * k * iy];
     },
@@ -80,7 +86,8 @@ export function createControls() {
     },
     setPad(id, b) {
       saved.pads = saved.pads || {};
-      for (const a of ACTIONS) if (a.id !== id && a.pad != null && bind[a.id].pad === b) saved.pads[a.id] = bind[id].pad;
+      const shareOk = (x, y) => (x === 'jump' && y === 'action') || (x === 'action' && y === 'jump');   // smart A
+      for (const a of ACTIONS) if (a.id !== id && a.pad != null && bind[a.id].pad === b && !shareOk(id, a.id)) saved.pads[a.id] = bind[id].pad;
       saved.pads[id] = b; rebuild(); save();
     },
     setTouchSize(v) { saved.touchSize = ctl.touchSize = v; save(); },

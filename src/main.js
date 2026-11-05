@@ -14,7 +14,7 @@ import { createCombat, ARENA } from './combat.js';
 import { createStory, defaultFlags, GATE_HOUR } from './story.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
 import { createControls, ACTIONS, keyName, padName, MOVE_OPTS, LOOK_OPTS, SPEED_OPTS, DEADZONE_OPTS } from './controls.js';
-import { BUILD, watchContext, createRenderGuard, quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
+import { trapBackButton, BUILD, watchContext, createRenderGuard, quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 // ================================================================ constants
 const REAL_DURATION = 2 * 60 * 60;   // 2 real hours of play (seconds)
@@ -233,7 +233,7 @@ function pressAction() {
   if (phase !== 'playing') return;
   if (story.busy) story.dialog.advance(); else story.interact();
 }
-const ctl = createControls();
+const ctl = createControls({ console: isConsole });
 if (isConsole) document.body.classList.add('console');   // controls screen shows only the controller column
 addEventListener('keydown', (e) => {
   if (editor.isOpen) return;   // typing in the designer must not move the hero
@@ -544,7 +544,10 @@ function updatePlaying(dt) {
     if (keys.KeyD || keys.ArrowRight) turnIn -= 1;
     if (keys.KeyA || keys.ArrowLeft) turnIn += 1;
     if (touch.active) { fwdIn += -touch.y; turnIn += -touch.x; }
-    if (pad.connected) { const [mx, my] = ctl.moveAxes(pad); fwdIn += -my; turnIn += -mx; }
+    if (pad.connected) {
+      const [mx, my] = ctl.moveAxes(pad); fwdIn += -my; turnIn += -mx;
+      if (pad.isDown(ctl.pad('walk')) || pad.isDown(ctl.pad('run'))) fwdIn = Math.max(fwdIn, 1);   // LT walk / RT run forward
+    }
   }
   fwdIn = THREE.MathUtils.clamp(fwdIn, -1, 1); turnIn = THREE.MathUtils.clamp(turnIn, -1, 1);
   const running = (keys.ShiftLeft || keys.ShiftRight || touch.run || pad.isDown(ctl.pad('run')) || pad.isDown(BTN.LS)) && fwdIn > 0;
@@ -556,7 +559,8 @@ function updatePlaying(dt) {
   player.pos.addScaledVector(fwd, player.speed * dt);
   resolveCollisions(player.pos);
   const g = groundAt(player.pos.x, player.pos.z);
-  if (canMove && (keys.Space || pad.isDown(ctl.pad('jump'))) && player.grounded) { player.velY = 24; player.grounded = false; }
+  if (canMove && (keys.Space || padJump || (!ctl.smartA && pad.isDown(ctl.pad('jump')))) && player.grounded) { player.velY = 24; player.grounded = false; }
+  padJump = false;
   player.velY -= 60 * dt;
   player.pos.y += player.velY * dt;
   if (player.pos.y <= g) {
@@ -638,7 +642,7 @@ function renderControls() {
     kb.textContent = ctlWait && ctlWait.id === a.id && ctlWait.kind === 'key' ? 'לחץ מקש…' : keyName(b.key);
     kb.classList.toggle('wait', !!(ctlWait && ctlWait.id === a.id && ctlWait.kind === 'key'));
     kb.onclick = () => { ctlWait = { id: a.id, kind: 'key' }; renderControls(); };
-    tr.children[1].appendChild(kb);
+    if (a.key == null) { tr.children[1].textContent = '—'; tr.children[1].className = 'fixed'; } else tr.children[1].appendChild(kb);
     if (a.pad == null) { tr.children[2].textContent = MOVE_OPTS[ctl.padMove]; tr.children[2].className = 'fixed'; }
     else {
       const pb = document.createElement('button'); pb.type = 'button';
@@ -660,7 +664,7 @@ function renderControls() {
 function updateHelp() {
   const k = (id) => keyName(ctl.bind[id].key), p = (id) => padName(ctl.bind[id].pad).split(' ')[0];
   $('help').textContent = `${k('fwd')}/${k('back')}: הליכה קדימה ואחורה · ${k('left')}/${k('right')}: סיבוב · ${k('run')}: ריצה · ${k('jump')}: קפיצה · גרירת עכבר: הסתכלות מסביב · גלגלת: זום · ${k('action')}: דיבור ופעולה · ${k('journal')}: יומן`;
-  $('help-pad').textContent = `🎮 ${MOVE_OPTS[ctl.padMove]}: הליכה וסיבוב · ${LOOK_OPTS[ctl.padLook]}: מצלמה · ${p('action')}: פעולה ושיחה · ${p('jump')}: קפיצה · ${p('run')}: ריצה · ${p('shoot')}: קרן שמש · ${p('burst')}: גל אור · ${p('journal')}: יומן · Menu: שליטה`;
+  $('help-pad').textContent = `🎮 ${MOVE_OPTS[ctl.padMove]}: הליכה וסיבוב · ${LOOK_OPTS[ctl.padLook]}: מצלמה · ${ctl.smartA ? `${p('action')}: פעולה, שיחה וקפיצה` : `${p('action')}: פעולה ושיחה · ${p('jump')}: קפיצה`} · ${p('walk')}: הליכה · ${p('run')}: ריצה · ${p('shoot')}: קרן שמש · ${p('burst')}: גל אור · ${p('journal')}: יומן · Menu: שליטה`;
 }
 function toggleControls(force) {
   const el = $('controls'), show = force ?? el.classList.contains('hidden');
@@ -684,22 +688,27 @@ function handlePad(dt) {
   $('pad-note').classList.toggle('hidden', !pad.connected);
   if (!pad.connected) return;
   if (ctlWait) { if (ctlWait.kind === 'pad' && pad.pressed.size) { const b = [...pad.pressed][0]; ctl.setPad(ctlWait.id, b); ctlWait = null; ctlCool = 0.4; renderControls(); } return; }
-  if (!$('controls').classList.contains('hidden')) { if (ctlCool > 0) { ctlCool -= dt; return; } if (pad.hit(BTN.B)) { toggleControls(false); return; } menuNav(pad, dt); return; }
+  const back = pad.hit(BTN.B) || pad.hit(BTN.Y) || padBack; padBack = false;
+  if (!$('controls').classList.contains('hidden')) { if (ctlCool > 0) { ctlCool -= dt; return; } if (back) { toggleControls(false); return; } menuNav(pad, dt); return; }
   const aHeld = pad.isDown(ctl.pad('action')) && phase === 'playing' && !story.busy;   // hold A = hold E (rescue, mirrors)
   if (aHeld) { keys.KeyE = true; padE = true; } else if (padE) { keys.KeyE = false; padE = false; }
   if (cinema.playing && (pad.hit(BTN.A) || pad.hit(BTN.B) || pad.hit(BTN.MENU))) { cinema.finish(); return; }
   const dlgChoices = story.busy && $('dlg-choices').childElementCount > 0;
   if (dlgChoices || !$('editor').classList.contains('hidden') || !$('journal').classList.contains('hidden') || ['title', 'choice', 'ended'].includes(phase)) {
-    if (pad.hit(BTN.B) && !$('journal').classList.contains('hidden')) { toggleJournal(false); return; }
-    if (pad.hit(BTN.B) && !$('editor').classList.contains('hidden')) { $('ed-cancel').click(); return; }
+    if (back && !$('journal').classList.contains('hidden')) { toggleJournal(false); return; }
+    if (back && !$('editor').classList.contains('hidden')) { $('ed-cancel').click(); return; }
     menuNav(pad, dt); return;
   }
   if (phase === 'playing') {
-    if (pad.hit(ctl.pad('action'))) pressAction();
+    if (pad.hit(ctl.pad('action'))) {
+      if (ctl.smartA && !story.busy && !lastPrompt) padJump = true;   // nothing to talk to / use: A jumps
+      else pressAction();
+    }
     if (pad.hit(ctl.pad('journal'))) toggleJournal();
     if (pad.hit(BTN.MENU) && ctl.pad('journal') !== BTN.MENU) toggleControls(true);
   }
   if (phase === 'fight') {
+    if (ctl.smartA && pad.hit(ctl.pad('jump'))) padJump = true;
     if (pad.isDown(ctl.pad('shoot'))) combat.shoot();
     if (pad.hit(ctl.pad('burst'))) combat.burst();
   }
@@ -709,7 +718,8 @@ function handlePad(dt) {
     cam.pitch = THREE.MathUtils.clamp(cam.pitch + ly * dt * 1.2, 0.03, 1.25);
   } else if (padLook > 0) { padLook -= dt; if (padLook <= 0) dragging = false; }
 }
-let padLook = 0, padE = false;
+let padLook = 0, padE = false, padJump = false, padBack = false, lastPrompt = '';
+trapBackButton(() => { padBack = true; });
 
 // ================================================================ main loop
 const clock = new THREE.Clock();
@@ -739,6 +749,7 @@ function frame() {
   if (phase === 'playing' || phase === 'choice') {
     if (phase === 'choice' && elapsedReal() >= REAL_DURATION) endGame('timeout');   // the clock never stops
     const s = story.update(dt, t, phase === 'playing' ? keys : {}, player.pos);
+    lastPrompt = s.prompt || '';
     if (phase !== 'ended') { updateHUD(phase === 'playing' ? ((pad.connected || hasTouch) ? s.prompt.replace('<b>E</b>', '<b>A</b>') : s.prompt) : '', s.progress); drawMinimap(); }
     saveTimer += dt; if (saveTimer > 2) { saveTimer = 0; save(); }
     if (toastTimer > 0) { toastTimer -= holdDtNow; if (toastTimer <= 0) $('toast').classList.add('hidden'); }
@@ -787,7 +798,7 @@ showTitle();
 frame();
 // debugging helpers for the browser console
 window.__game = {
-  get state() { return state; }, get phase() { return phase; }, get gfx() { let tri = 0, vb = 0; scene.traverse((o) => { const g = o.geometry; if (!g || !o.visible) return; const n = g.index ? g.index.count : g.attributes.position.count; tri += n / 3 * (o.count || 1); for (const a of Object.values(g.attributes)) vb += a.array.byteLength; if (g.index) vb += g.index.array.byteLength; }); return { sceneTris: Math.round(tri), geoMB: Math.round(vb / 1e6), shadow: sun.shadow.mapSize.x, ...renderer.info.memory, tris: renderer.info.render.triangles, calls: renderer.info.render.calls, ratio: renderer.getPixelRatio() }; }, get pos() { return [Math.round(player.pos.x), Math.round(player.pos.z)]; }, endGame, startGame, story, startFight, combat, cinema,
+  get state() { return state; }, get phase() { return phase; }, get py() { return +player.pos.y.toFixed(1); }, get spd() { return +player.speed.toFixed(1); }, get gfx() { let tri = 0, vb = 0; scene.traverse((o) => { const g = o.geometry; if (!g || !o.visible) return; const n = g.index ? g.index.count : g.attributes.position.count; tri += n / 3 * (o.count || 1); for (const a of Object.values(g.attributes)) vb += a.array.byteLength; if (g.index) vb += g.index.array.byteLength; }); return { sceneTris: Math.round(tri), geoMB: Math.round(vb / 1e6), shadow: sun.shadow.mapSize.x, ...renderer.info.memory, tris: renderer.info.render.triangles, calls: renderer.info.render.calls, ratio: renderer.getPixelRatio() }; }, get pos() { return [Math.round(player.pos.x), Math.round(player.pos.z)]; }, endGame, startGame, story, startFight, combat, cinema,
   teleport(x, z) { player.pos.set(x, groundAt(x, z), z); },
   view(orbit) { cam.orbit = orbit; cam.yaw = player.facing + Math.PI + orbit; dragging = true; },
   look(yaw, pitch, dist) { player.facing = yaw + Math.PI; cam.yaw = yaw; if (pitch !== undefined) cam.pitch = pitch; if (dist !== undefined) cam.dist = dist; },

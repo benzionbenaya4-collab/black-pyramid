@@ -15,7 +15,7 @@ import { buildNefira, buildHuman, buildTamunCamp, buildKeeper, buildTablet, buil
 import { CHAPTERS, lineId } from './screenplay.js';
 import { EXTRA, EXTRA2 } from './screenplay-extra.js';
 import { MAT } from './util.js';
-import { watchContext, createRenderGuard, quality, createAutoRes, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
+import { trapBackButton, watchContext, createRenderGuard, quality, createAutoRes, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
 
 const $ = (id) => document.getElementById(id);
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -507,13 +507,15 @@ addEventListener('keydown', (e) => {
 const clock = new THREE.Clock();
 let t = 0;
 const pad = createGamepad();
+let filmBack = false;
+trapBackButton(() => { if (!$('player').classList.contains('hidden')) filmBack = true; });
 const menuNav = createMenuNav(['#end-card', '#library']);
 function handlePad(dt) {
   pad.poll(dt);
   if (!pad.connected) return;
   if (!$('player').classList.contains('hidden') && $('end-card').classList.contains('hidden')) {
     if (pad.hit(BTN.A) || pad.hit(BTN.MENU)) setPaused(!paused);
-    if (pad.hit(BTN.B) || pad.hit(BTN.VIEW)) backToLibrary();
+    if (pad.hit(BTN.B) || pad.hit(BTN.VIEW) || filmBack) { filmBack = false; backToLibrary(); }
     if (pad.hit(BTN.RB) || pad.hit(BTN.RIGHT)) skipBeat();
     if (pad.hit(BTN.LB) || pad.hit(BTN.UP)) $('btn-scene').click();
     if (pad.hit(BTN.Y)) $('btn-voice').click();

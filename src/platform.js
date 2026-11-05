@@ -240,6 +240,14 @@ export function createGamepad() {
   return st;
 }
 
+/** Xbox Edge treats B as the browser's Back button and would leave the game: keep the player on the page
+ *  and report the press instead (onBack closes menus). */
+export function trapBackButton(onBack) {
+  if (!isConsole || !history.pushState) return;
+  try { history.pushState({ bp: 1 }, ''); } catch { return; }
+  addEventListener('popstate', () => { try { history.pushState({ bp: 1 }, ''); } catch { /* ignore */ } onBack(); });
+}
+
 /** Move a highlight between the visible buttons of the open menu with the D-pad / left stick; A presses it. */
 export function createMenuNav(containers) {
   let idx = 0, cool = 0, lastScope = null;
@@ -254,8 +262,8 @@ export function createMenuNav(containers) {
     const list = items(sc); if (!list.length) return false;
     if (sc !== lastScope) { idx = 0; lastScope = sc; }
     cool -= dt;
-    const dir = pad.hit(BTN.DOWN) || pad.hit(BTN.RIGHT) || (cool <= 0 && (pad.ly > 0.6 || pad.lx > 0.6)) ? 1
-      : pad.hit(BTN.UP) || pad.hit(BTN.LEFT) || (cool <= 0 && (pad.ly < -0.6 || pad.lx < -0.6)) ? -1 : 0;
+    const dir = pad.hit(BTN.DOWN) || pad.hit(BTN.RIGHT) || (cool <= 0 && ((pad.ly || pad.ry) > 0.6 || (pad.lx || pad.rx) > 0.6)) ? 1
+      : pad.hit(BTN.UP) || pad.hit(BTN.LEFT) || (cool <= 0 && ((pad.ly || pad.ry) < -0.6 || (pad.lx || pad.rx) < -0.6)) ? -1 : 0;
     if (dir) { idx = (idx + dir + list.length) % list.length; cool = 0.25; }
     idx = Math.min(idx, list.length - 1);
     list.forEach((b, i) => b.classList.toggle('pad-focus', i === idx));
