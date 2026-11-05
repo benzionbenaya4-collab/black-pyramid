@@ -14,8 +14,8 @@ export const isMobile = !isConsole && (/Android|iPhone|iPad|iPod|Mobile/i.test(U
 export const device = isConsole ? 'console' : isMobile ? 'phone' : 'pc';
 const PROFILES = {
   pc: { pixelRatio: 1.75, minRatio: 0.85, msaa: 4, halfFloat: true, painter: 3, bloom: true, shadow: 2048, groundSeg: 360 },
-  console: { pixelRatio: 1, minRatio: 0.6, msaa: 0, halfFloat: false, painter: 2, bloom: true, shadow: 2048, groundSeg: 300 },
-  phone: { pixelRatio: 1.5, minRatio: 0.6, msaa: 0, halfFloat: true, painter: 2, bloom: true, shadow: 1024, groundSeg: 240 },
+  console: { pixelRatio: 1, minRatio: 0.75, msaa: 2, halfFloat: false, painter: 2, bloom: true, shadow: 2048, groundSeg: 300 },
+  phone: { pixelRatio: 2, minRatio: 1, msaa: 4, halfFloat: true, painter: 2, bloom: true, shadow: 1024, groundSeg: 240 },
 };
 const MEM_KEY = `blackPyramid.lowMem.${device}`;
 export function lowMem() { try { return +localStorage.getItem(MEM_KEY) || 0; } catch { return 0; } }
@@ -24,7 +24,8 @@ export function quality() {
   const p = { ...PROFILES[device] }, lm = lowMem();
   // set automatically only if this device's 3D engine crashed before (see watchContext)
   if (lm >= 1) Object.assign(p, { pixelRatio: Math.min(p.pixelRatio, 1), msaa: 0, halfFloat: false, shadow: 1024, groundSeg: Math.min(p.groundSeg, 220) });
-  if (lm >= 2) Object.assign(p, { pixelRatio: 0.75, minRatio: 0.5, painter: 0, bloom: false, shadow: 512, groundSeg: 160 });
+  if (lm >= 2) Object.assign(p, { webgl1: true, pixelRatio: 0.75, minRatio: 0.5, painter: 0, bloom: false, shadow: 512, groundSeg: 160 });   // older, more stable WebGL1
+  if (lm >= 3) Object.assign(p, { shadow: 0, direct: true });   // no shadows, no post-processing at all
   return { level: device, lowMem: lm, ...p, pixelRatio: Math.min(window.devicePixelRatio || 1, p.pixelRatio) };
 }
 function gpuInfo(gl) {
@@ -33,10 +34,10 @@ function gpuInfo(gl) {
     return `GPU: ${dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)} · maxTex ${gl.getParameter(gl.MAX_TEXTURE_SIZE)} · ${innerWidth}x${innerHeight}@${devicePixelRatio}`;
   } catch { return 'GPU: ?'; }
 }
-/** retry with lighter graphics (at most twice), then show the technical details on screen */
+/** retry with lighter graphics (up to three steps), then show the technical details on screen */
 export function lighterAndReload(reason, gl) {
   const lm = lowMem();
-  if (lm < 2) {
+  if (lm < 3) {
     try { localStorage.setItem(MEM_KEY, String(lm + 1)); } catch { /* no storage */ }
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:98;display:flex;align-items:center;justify-content:center;background:#140a02;color:#f6e7c8;font:22px/1.6 Arial,sans-serif;direction:rtl;text-align:center;padding:24px';
@@ -52,9 +53,19 @@ export function watchContext(renderer) {
   const gl = renderer.getContext();
   renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); lighterAndReload('WebGL context lost', gl); });
 }
-/** Dynamic resolution: call tick() every frame; apply(ratio) is called when the render scale should change. */
+/** Automatic quality while playing: call tick() every frame. When the game gets slow it first drops the most
+ *  expensive effect (painterly filter), then resolution step by step (never below the profile's floor), then bloom;
+ *  when it is fast again it climbs back up. apply({ ratio, painter, bloom }) is called on every change. */
 export function createAutoRes(Q, apply) {
-  let r = Q.pixelRatio, acc = 0, n = 0, warm = 3, last = performance.now();
+  const mid = (Q.pixelRatio + Q.minRatio) / 2;
+  const levels = [
+    { ratio: Q.pixelRatio, painter: true, bloom: true },
+    { ratio: Q.pixelRatio, painter: false, bloom: true },
+    { ratio: mid, painter: false, bloom: true },
+    { ratio: Q.minRatio, painter: false, bloom: true },
+    { ratio: Q.minRatio, painter: false, bloom: false },
+  ];
+  let lv = 0, acc = 0, n = 0, warm = 3, slow = 0, fast = 0, last = performance.now();
   return function tick() {
     const now = performance.now(), d = (now - last) / 1000; last = now;
     if (d > 0.25 || document.hidden) return;   // tab switch / loading hitch: ignore
@@ -62,10 +73,9 @@ export function createAutoRes(Q, apply) {
     if (acc < 1.2) return;
     const ms = (acc / n) * 1000; acc = 0; n = 0;
     if (warm > 0) { warm--; return; }
-    let nr = r;
-    if (ms > 22) nr = Math.max(Q.minRatio, r - (ms > 34 ? 0.2 : 0.1));
-    else if (ms < 15) nr = Math.min(Q.pixelRatio, r + 0.05);
-    if (Math.abs(nr - r) > 0.01) { r = nr; apply(r); }
+    if (ms > 24) { fast = 0; if (++slow >= 2 && lv < levels.length - 1) { lv++; slow = 0; apply(levels[lv]); } }
+    else if (ms < 13) { slow = 0; if (++fast >= 5 && lv > 0) { lv--; fast = 0; apply(levels[lv]); } }
+    else { slow = 0; fast = 0; }
   };
 }
 
@@ -130,7 +140,13 @@ export function checkWebGL() {
   } catch { /* fall through */ }
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#140a02;color:#f6e7c8;font:20px/1.6 Arial,sans-serif;text-align:center;padding:24px;direction:rtl;z-index:100';
-  el.textContent = 'הדפדפן הזה לא תומך בגרפיקה תלת-ממדית (WebGL). נסו דפדפן אחר, למשל Microsoft Edge או Chrome.';
+  el.style.flexDirection = 'column';
+  if (lowMem() > 0) {
+    // the game's 3D crashed earlier on this device: browsers then block 3D for the site until fully restarted
+    el.innerHTML = '<div><b>הגרפיקה נתקעה בפעם הקודמת, והדפדפן חסם זמנית תלת-ממד.</b><br>סגרו את הדפדפן <b>לגמרי</b> ופתחו אותו מחדש. המשחק יעלה עם גרפיקה מותאמת למכשיר.</div>'
+      + (isXbox ? '<div style="margin-top:14px;font-size:17px">באקס בוקס: לחצו על כפתור ה-Xbox בבקר, סמנו את Edge, לחצו ☰ (Menu) ובחרו <b>Quit / יציאה</b>. אחר כך פתחו את Edge שוב.</div>' : '')
+      + `<div style="margin-top:14px;font-size:13px;opacity:.7;direction:ltr">WebGL blocked after crash · safe level ${lowMem()}</div>`;
+  } else el.textContent = 'הדפדפן הזה לא תומך בגרפיקה תלת-ממדית (WebGL). נסו דפדפן אחר, למשל Microsoft Edge או Chrome.';
   document.body.appendChild(el);
   return false;
 }

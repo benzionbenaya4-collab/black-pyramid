@@ -39,10 +39,10 @@ const store = {
 const Q = quality();            // high on computers, lighter automatically on phones and consoles
 setupMobile();
 if (!checkWebGL()) throw new Error('WebGL is not available');
-const renderer = new THREE.WebGLRenderer({ antialias: Q.level === 'pc', powerPreference: 'high-performance' });
+const renderer = new (Q.webgl1 ? THREE.WebGL1Renderer : THREE.WebGLRenderer)({ antialias: Q.level === 'pc', powerPreference: 'high-performance' });
 renderer.setPixelRatio(Q.pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = Q.shadow > 0;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 $('app').appendChild(renderer.domElement);
@@ -111,14 +111,20 @@ function resize() {
 addEventListener('resize', resize);
 resize();
 // keeps the game smooth on every device: lowers/raises the render resolution by itself
-const autoRes = createAutoRes(Q, (r) => { renderer.setPixelRatio(r); resize(); });
+// effects can be turned off by the auto-quality (temporarily) or by the broken-picture guard (for good)
+const fx = { painter: true, bloom: true, safeNoPainter: false, safeNoBloom: false };
+function applyFx() { painter.enabled = fx.painter && !fx.safeNoPainter; if (bloom) bloom.enabled = fx.bloom && !fx.safeNoBloom; }
+const autoRes = createAutoRes(Q, (s) => {
+  if (Math.abs(s.ratio - renderer.getPixelRatio()) > 0.01) { renderer.setPixelRatio(s.ratio); resize(); }
+  fx.painter = s.painter; fx.bloom = s.bloom; applyFx();
+});
 // if this device draws a white / broken picture, effects are switched off one at a time (and remembered)
 watchContext(renderer);
-let useComposer = true;
+let useComposer = !Q.direct;
 const renderGuard = createRenderGuard(renderer, [
-  () => { painter.enabled = false; },
+  () => { fx.safeNoPainter = true; applyFx(); },
   () => { composer.reset(new THREE.WebGLRenderTarget(1, 1, { type: THREE.UnsignedByteType })); },
-  () => { if (bloom) bloom.enabled = false; },
+  () => { fx.safeNoBloom = true; applyFx(); },
   () => { useComposer = false; },
   () => { renderer.shadowMap.enabled = false; scene.traverse((o) => { if (o.material) [].concat(o.material).forEach((mt) => { mt.needsUpdate = true; }); }); },
 ], 'game');
@@ -126,7 +132,7 @@ const renderGuard = createRenderGuard(renderer, [
 const hemi = new THREE.HemisphereLight(0xa8d8ff, 0xe0a070, 0.6);
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
 sun.castShadow = true;
-sun.shadow.mapSize.set(Q.shadow, Q.shadow);
+sun.shadow.mapSize.set(Q.shadow || 512, Q.shadow || 512);
 Object.assign(sun.shadow.camera, { left: -170, right: 170, top: 170, bottom: -170, near: 1, far: 1400 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.4;
 scene.add(hemi, sun, sun.target);
@@ -776,7 +782,7 @@ showTitle();
 frame();
 // debugging helpers for the browser console
 window.__game = {
-  get state() { return state; }, get phase() { return phase; }, get pos() { return [Math.round(player.pos.x), Math.round(player.pos.z)]; }, endGame, startGame, story, startFight, combat, cinema,
+  get state() { return state; }, get phase() { return phase; }, get gfx() { let tri = 0, vb = 0; scene.traverse((o) => { const g = o.geometry; if (!g || !o.visible) return; const n = g.index ? g.index.count : g.attributes.position.count; tri += n / 3 * (o.count || 1); for (const a of Object.values(g.attributes)) vb += a.array.byteLength; if (g.index) vb += g.index.array.byteLength; }); return { sceneTris: Math.round(tri), geoMB: Math.round(vb / 1e6), shadow: sun.shadow.mapSize.x, ...renderer.info.memory, tris: renderer.info.render.triangles, calls: renderer.info.render.calls, ratio: renderer.getPixelRatio() }; }, get pos() { return [Math.round(player.pos.x), Math.round(player.pos.z)]; }, endGame, startGame, story, startFight, combat, cinema,
   teleport(x, z) { player.pos.set(x, groundAt(x, z), z); },
   view(orbit) { cam.orbit = orbit; cam.yaw = player.facing + Math.PI + orbit; dragging = true; },
   look(yaw, pitch, dist) { player.facing = yaw + Math.PI; cam.yaw = yaw; if (pitch !== undefined) cam.pitch = pitch; if (dist !== undefined) cam.dist = dist; },

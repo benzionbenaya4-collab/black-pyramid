@@ -24,10 +24,10 @@ const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const Q = quality();
 setupMobile();
 if (!checkWebGL()) throw new Error('WebGL is not available');
-const renderer = new THREE.WebGLRenderer({ antialias: Q.level === 'pc', powerPreference: 'high-performance' });
+const renderer = new (Q.webgl1 ? THREE.WebGL1Renderer : THREE.WebGLRenderer)({ antialias: Q.level === 'pc', powerPreference: 'high-performance' });
 renderer.setPixelRatio(Q.pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = Q.shadow > 0; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 $('stage').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
@@ -84,20 +84,26 @@ function resize() {
 addEventListener('resize', resize);
 resize();
 // keeps the game smooth on every device: lowers/raises the render resolution by itself
-const autoRes = createAutoRes(Q, (r) => { renderer.setPixelRatio(r); resize(); });
+// effects can be turned off by the auto-quality (temporarily) or by the broken-picture guard (for good)
+const fxOn = { painter: true, bloom: true, safeNoPainter: false, safeNoBloom: false };
+function applyFx() { painter.enabled = fxOn.painter && !fxOn.safeNoPainter; if (bloom) bloom.enabled = fxOn.bloom && !fxOn.safeNoBloom; }
+const autoRes = createAutoRes(Q, (s) => {
+  if (Math.abs(s.ratio - renderer.getPixelRatio()) > 0.01) { renderer.setPixelRatio(s.ratio); resize(); }
+  fxOn.painter = s.painter; fxOn.bloom = s.bloom; applyFx();
+});
 // if this device draws a white / broken picture, effects are switched off one at a time (and remembered)
 watchContext(renderer);
-let useComposer = true;
+let useComposer = !Q.direct;
 const renderGuard = createRenderGuard(renderer, [
-  () => { painter.enabled = false; },
+  () => { fxOn.safeNoPainter = true; applyFx(); },
   () => { composer.reset(new THREE.WebGLRenderTarget(1, 1, { type: THREE.UnsignedByteType })); },
-  () => { if (bloom) bloom.enabled = false; },
+  () => { fxOn.safeNoBloom = true; applyFx(); },
   () => { useComposer = false; },
   () => { renderer.shadowMap.enabled = false; scene.traverse((o) => { if (o.material) [].concat(o.material).forEach((mt) => { mt.needsUpdate = true; }); }); },
 ], 'film');
 const hemi = new THREE.HemisphereLight(0xa8d8ff, 0xe0a070, 0.6);
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
-sun.castShadow = true; sun.shadow.mapSize.set(Q.shadow, Q.shadow);
+sun.castShadow = true; sun.shadow.mapSize.set(Q.shadow || 512, Q.shadow || 512);
 Object.assign(sun.shadow.camera, { left: -200, right: 200, top: 200, bottom: -200, near: 1, far: 1600 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.4;
 scene.add(hemi, sun, sun.target);
