@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="build" content="5e901a2">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>אגדות נפירה</title>
+  <link rel="stylesheet" href="style.css?v=0714e2c4">
+  <script>
+  // on-screen errors instead of a blank page (also catches files that fail to load)
+  (function () {
+    function show(msg) {
+      var el = document.getElementById('fatal');
+      if (!el) {
+        el = document.createElement('div'); el.id = 'fatal';
+        el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99;background:#2a0a0a;color:#ffd9d0;border:1px solid #ff6a4a;border-radius:10px;padding:12px 16px;font:14px/1.5 Arial,sans-serif;direction:rtl;max-height:45vh;overflow:auto';
+        el.innerHTML = '<b>אירעה שגיאה.</b> צלמו את ההודעה הזאת ושלחו אותה, כדי שאפשר יהיה לתקן:<pre style="white-space:pre-wrap;direction:ltr;text-align:left;margin:8px 0 0"></pre>';
+        (document.body || document.documentElement).appendChild(el);
+      }
+      el.querySelector('pre').textContent += msg + '\n[build ' + ((document.querySelector('meta[name=build]') || {}).content || '?') + '] [' + navigator.userAgent + ']\n';
+    }
+    window.addEventListener('error', function (e) { show((e.message || 'load error') + ' @ ' + (e.filename || (e.target && (e.target.src || e.target.href)) || '') + ':' + (e.lineno || '')); }, true);
+    window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)); });
+  })();
+  </script>
+  <style>
+    #l-title, #l-end { background: radial-gradient(ellipse at center, rgba(10, 18, 40, .35), rgba(4, 6, 14, .85)); z-index: 40; }
+    .panel.legends { text-align: center; max-width: 620px; }
+    .legends-logo { font-size: clamp(42px, 8vw, 84px); font-weight: bold; color: #bfe6ff; letter-spacing: 2px; margin: 4px 0;
+      text-shadow: 0 0 18px #6fc8ff, 0 0 46px rgba(120, 200, 255, .6), 0 3px 0 #0b2740; }
+    .legends-sub { color: #ffd86a; letter-spacing: 4px; margin: 0 0 14px; }
+    .panel.legends .story { text-align: right; }
+    #objectives:empty { display: none; }
+    #dlg-text.narr { font-style: italic; opacity: .9; }
+    #hpbar .track { border-color: #8fd3ff; } #hpbar-fill { background: linear-gradient(90deg, #8fd3ff, #f3ead6); }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/addons/",
+    "./src/cinema.js": "./src/cinema.js?v=581307a7",
+    "./src/combat.js": "./src/combat.js?v=7e05d889",
+    "./src/controls.js": "./src/controls.js?v=9c083cc0",
+    "./src/diag-gpu.js": "./src/diag-gpu.js?v=dbcbefbd",
+    "./src/editor.js": "./src/editor.js?v=936047cc",
+    "./src/endings.js": "./src/endings.js?v=73b9eb55",
+    "./src/engine.js": "./src/engine.js?v=d0e4d701",
+    "./src/glyphs.js": "./src/glyphs.js?v=389e72b1",
+    "./src/golem.js": "./src/golem.js?v=77059493",
+    "./src/legends-world.js": "./src/legends-world.js?v=6dbe4eb4",
+    "./src/legends.js": "./src/legends.js?v=b3f3fbbf",
+    "./src/main.js": "./src/main.js?v=ffca2c94",
+    "./src/movies.js": "./src/movies.js?v=93127a3a",
+    "./src/news.js": "./src/news.js?v=34f0ab98",
+    "./src/platform.js": "./src/platform.js?v=e7e436d4",
+    "./src/screenplay-extra.js": "./src/screenplay-extra.js?v=08e639e7",
+    "./src/screenplay.js": "./src/screenplay.js?v=9238365b",
+    "./src/story.js": "./src/story.js?v=12d245e7",
+    "./src/util.js": "./src/util.js?v=85ddd378",
+    "./src/world.js": "./src/world.js?v=6e39d9f5"
+  }
+}
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="rotate"><div>📱↻</div><p>סובבו את הטלפון לרוחב כדי לשחק</p></div>
+
+  <div id="letterbox"><div class="bar top"></div><div class="bar bottom"></div></div>
+  <div id="cine-caption" class="hidden"></div>
+  <div id="teaser-title" class="hidden"><div class="tt-main"></div><div class="tt-sub"></div></div>
+  <button id="cine-skip" class="hidden ghost" type="button">דלג ⏭</button>
+  <div id="hurt"></div>
+  <div id="boss-shout" class="hidden"></div>
+
+  <div id="hud" class="hidden">
+    <div id="objectives"></div>
+    <div id="prompt" class="hidden"></div>
+    <div id="progress" class="hidden"><div id="progress-bar"></div></div>
+    <div id="toast" class="hidden"></div>
+    <div id="hpbar" class="hidden">
+      <div class="name">נפירה <span id="hp-text">100</span></div><div class="track"><div id="hpbar-fill"></div></div>
+      <div class="keys">אין לך נשק · רווח / B: קפיצה · E / A ליד סת'אר: לדבר איתו</div>
+    </div>
+    <div id="touch" class="hidden">
+      <div id="joy-zone"><div id="joy"><div id="joy-knob"></div></div><div id="joy-hint">גרור כאן כדי ללכת · עד הסוף = ריצה</div></div>
+      <div id="tbtns">
+        <button id="t-a" type="button" aria-label="פעולה"><b>A</b><i>✋</i></button>
+        <button id="t-b" type="button" aria-label="קפיצה"><b>B</b><i>⤒</i></button>
+      </div>
+    </div>
+    <div id="dialog" class="hidden">
+      <div id="dlg-name"></div>
+      <div id="dlg-text"></div>
+      <div id="dlg-choices"></div>
+      <div id="dlg-hint">E / רווח / לחיצה / A: המשך</div>
+    </div>
+  </div>
+
+  <div id="l-title" class="screen hidden">
+    <div class="panel legends">
+      <div class="legends-logo">אגדות נפירה</div>
+      <p class="legends-sub">כל אגדה מתחילה בזיכרון אחד</p>
+      <p class="story">לפני שהייתה רוח, לפני הפירמידה השחורה, לפני משמר החול, הייתה ילדה בעיר חיה. היה לה אח גדול שפחד מהחושך, והיא הבטיחה לו להיות האור שלו.</p>
+      <div class="buttons">
+        <button id="l-continue" class="hidden" type="button">המשך</button>
+        <button id="l-new" type="button">התחל</button>
+      </div>
+      <p class="note">ארבעה פרקים · סוף אחד · גרסת בטא</p>
+    </div>
+  </div>
+
+  <div id="l-end" class="screen hidden">
+    <div class="panel legends">
+      <div class="note">סוף</div>
+      <div class="legends-logo">אגדות נפירה</div>
+      <p class="story">היא לא נלחמה בו. היא נתנה את מה שהיה לה, כדי שמישהו אחר ישמור על מה שהיא אהבה.</p>
+      <p class="story">ושלושת אלפים שנה אחר כך, משמר החול פקח את עיניו.</p>
+      <div class="buttons"><button id="l-again" type="button">לשחק שוב</button><button id="l-menu" type="button" class="ghost">למסך הראשי</button></div>
+    </div>
+  </div>
+
+  <script type="module" src="src/legends.js?v=b3f3fbbf"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-<meta name="build" content="f762480">
+<meta name="build" content="5e901a2">
   <title>משמר הפירמידה השחורה</title>
   <style>
 :root { color-scheme: dark; background: #000; }
@@ -246,6 +246,23 @@ body.mobile #btn-news { top: calc(136px + env(safe-area-inset-top, 0px)); left: 
 #teaser-title .tt-sub { margin-top: 6px; font-size: clamp(18px, 2.6vw, 30px); color: #ffd86a; letter-spacing: 8px; text-shadow: 0 0 12px rgba(255, 200, 80, .7); }
 #teaser-title.low { justify-content: flex-end; padding-bottom: 15vh; }
 
+/* "Legends of Nefira" button with a live countdown */
+.legends-btn { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; background: linear-gradient(180deg, #16324f, #0b1a2c) !important;
+  border: 1px solid #6fc8ff !important; color: #bfe6ff !important; box-shadow: 0 0 14px rgba(111, 200, 255, .35); }
+.legends-btn .lb-name { font-weight: bold; text-shadow: 0 0 8px #6fc8ff; }
+.legends-btn .lb-timer { font-size: 12px; color: #ffd86a; direction: rtl; letter-spacing: .5px; }
+.legends-btn .lb-timer bdi { font-variant-numeric: tabular-nums; }
+#legends-soon { background: radial-gradient(ellipse at center, #0a1830, #02040a); z-index: 42; }
+.panel.soon { text-align: center; max-width: 640px; background: transparent; border: none; box-shadow: none; }
+.soon-logo { font-size: clamp(44px, 9vw, 96px); font-weight: bold; color: #bfe6ff; letter-spacing: 2px;
+  text-shadow: 0 0 18px #6fc8ff, 0 0 46px rgba(120, 200, 255, .6), 0 3px 0 #0b2740; }
+.soon-label { margin-top: 10px; color: #ffd86a; letter-spacing: 6px; font-size: 20px; }
+.soon-timer { display: flex; justify-content: center; gap: 14px; margin: 14px 0 22px; direction: rtl; }
+.soon-timer .u { min-width: 74px; padding: 10px 6px; border: 1px solid rgba(111, 200, 255, .5); border-radius: 12px; background: rgba(10, 30, 60, .55); }
+.soon-timer .n { font-size: 38px; font-weight: bold; color: #e8f6ff; font-variant-numeric: tabular-nums; direction: ltr; }
+.soon-timer .l { font-size: 13px; color: #9fd0f0; }
+@media (max-width: 600px) { .soon-timer { gap: 6px; } .soon-timer .u { min-width: 58px; } .soon-timer .n { font-size: 26px; } }
+
 </style>
   <script>
   // on-screen errors instead of a blank page (also catches files that fail to load)
@@ -275,8 +292,11 @@ body.mobile #btn-news { top: calc(136px + env(safe-area-inset-top, 0px)); left: 
     "./src/diag-gpu.js": "./src/diag-gpu.js",
     "./src/editor.js": "./src/editor.js",
     "./src/endings.js": "./src/endings.js",
+    "./src/engine.js": "./src/engine.js",
     "./src/glyphs.js": "./src/glyphs.js",
     "./src/golem.js": "./src/golem.js",
+    "./src/legends-world.js": "./src/legends-world.js",
+    "./src/legends.js": "./src/legends.js",
     "./src/main.js": "./src/main.js",
     "./src/movies.js": "./src/movies.js",
     "./src/news.js": "./src/news.js",
@@ -365,6 +385,7 @@ body.mobile #btn-news { top: calc(136px + env(safe-area-inset-top, 0px)); left: 
         <button id="btn-design-title" class="ghost" type="button">🎨 עיצוב הדמות</button>
         <button id="btn-controls-title" class="ghost" type="button">🎮 שליטה ומקשים</button>
         <button id="btn-news-title" class="ghost btn-news" type="button">📰 חדשות</button>
+        <button id="btn-legends" class="legends-btn" type="button"><span class="lb-name">✦ אגדות נפירה</span><span id="lb-timer" class="lb-timer"></span></button>
         <a class="film-link" href="movies.html">🎬 לסרט של המשחק</a>
       </div>
       <p id="endings-found" class="note"></p>
@@ -408,6 +429,14 @@ body.mobile #btn-news { top: calc(136px + env(safe-area-inset-top, 0px)); left: 
   </div>
 
   <!-- Journal -->
+  <div id="legends-soon" class="screen hidden">
+    <div class="panel soon">
+      <div class="soon-logo">אגדות נפירה</div>
+      <div id="soon-label" class="soon-label">בעוד</div>
+      <div id="soon-timer" class="soon-timer"></div>
+      <div class="buttons"><button id="soon-play" class="hidden" type="button">✦ לשחק עכשיו</button><button id="soon-close" type="button" class="ghost">סגור</button></div>
+    </div>
+  </div>
   <div id="news" class="screen hidden">
     <div class="panel news">
       <h1 class="news-head">📰 חדשות</h1>

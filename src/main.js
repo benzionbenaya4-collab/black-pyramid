@@ -241,6 +241,7 @@ addEventListener('keydown', (e) => {
   if (ctlWait) { e.preventDefault(); if (e.code !== 'Escape' && ctlWait.kind === 'key') ctl.setKey(ctlWait.id, e.code); ctlWait = null; renderControls(); return; }
   if (!$('controls').classList.contains('hidden')) { if (e.code === 'Escape') toggleControls(false); return; }
   if (!$('news').classList.contains('hidden')) { if (['Escape', 'Enter'].includes(e.code)) news.close(); return; }
+  if (!$('legends-soon').classList.contains('hidden')) { if (e.code === 'Escape') $('legends-soon').classList.add('hidden'); return; }
   const ev0 = e; e = { code: ctl.key(ev0.code), repeat: ev0.repeat, preventDefault: () => ev0.preventDefault() };
   if (cinema.playing && ['Space', 'KeyE', 'Enter', 'Escape'].includes(e.code) && !e.repeat) { e.preventDefault(); cinema.finish(); return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -659,7 +660,7 @@ function drawMinimap() {
 
 // ================================================================ controller (Xbox and others)
 const pad = createGamepad();
-const menuNav = createMenuNav(['#beta', '#news', '#controls', '#editor', '#journal', '#choice', '#ending', '#title', '#dlg-choices']);
+const menuNav = createMenuNav(['#beta', '#legends-soon', '#news', '#controls', '#editor', '#journal', '#choice', '#ending', '#title', '#dlg-choices']);
 // ---------------------------------------------------------------- controls screen (change keys / buttons)
 let ctlWait = null, ctlCool = 0;
 function renderControls() {
@@ -715,6 +716,24 @@ $('ctl-calib').addEventListener('click', () => { pad.calibrate(); $('ctl-calib')
   });
 })();
 const news = createNews({ $ });
+// ---------------------------------------------------------------- "Legends of Nefira": a countdown to one fixed release moment
+// (the same for every player; it is computed from the device clock, so it is right whenever the game is opened)
+const LEGENDS_AT = Date.UTC(2026, 10, 20, 16, 0, 0);   // 20 Nov 2026, 18:00 Israel time
+const pad2s = (n) => String(n).padStart(2, '0');
+function legendsLeft() { const ms = Math.max(0, LEGENDS_AT - Date.now()); const s = Math.floor(ms / 1000); return { ms, d: Math.floor(s / 86400), h: Math.floor(s / 3600) % 24, m: Math.floor(s / 60) % 60, s: s % 60 }; }
+function tickLegends() {
+  const L = legendsLeft(), ready = L.ms <= 0;
+  $('lb-timer').innerHTML = ready ? 'זמין עכשיו' : `${L.d} ימים · <bdi dir="ltr">${pad2s(L.h)}:${pad2s(L.m)}:${pad2s(L.s)}</bdi>`;
+  if (!$('legends-soon').classList.contains('hidden')) {
+    $('soon-label').textContent = ready ? 'זמין עכשיו' : 'בעוד';
+    $('soon-play').classList.toggle('hidden', !ready);
+    $('soon-timer').innerHTML = ready ? '' : [[L.d, 'ימים'], [L.h, 'שעות'], [L.m, 'דקות'], [L.s, 'שניות']].map(([n, l]) => `<div class="u"><div class="n">${pad2s(n)}</div><div class="l">${l}</div></div>`).join('');
+  }
+}
+$('btn-legends').addEventListener('click', () => { $('legends-soon').classList.remove('hidden'); tickLegends(); });
+$('soon-close').addEventListener('click', () => $('legends-soon').classList.add('hidden'));
+$('soon-play').addEventListener('click', () => { if (legendsLeft().ms <= 0) location.href = 'legends.html'; });
+tickLegends(); setInterval(tickLegends, 1000);
 $('btn-controls').addEventListener('click', () => toggleControls(true));
 $('btn-controls-title').addEventListener('click', () => toggleControls(true));
 $('ctl-close').addEventListener('click', () => toggleControls(false));
@@ -732,6 +751,7 @@ function handlePad(dt) {
   if (ctlWait) { if (ctlWait.kind === 'pad' && pad.pressed.size) { const b = [...pad.pressed][0]; ctl.setPad(ctlWait.id, b); ctlWait = null; ctlCool = 0.4; renderControls(); } return; }
   const back = pad.hit(BTN.B) || pad.hit(BTN.Y) || padBack; padBack = false;
   if (!$('beta').classList.contains('hidden')) { menuNav(pad, dt); return; }
+  if (!$('legends-soon').classList.contains('hidden')) { if (back) { $('legends-soon').classList.add('hidden'); return; } menuNav(pad, dt); return; }
   if (news.isOpen) {   // sticks scroll the article; A / B / Y close it
     if (back || pad.hit(BTN.A)) { news.close(); return; }
     const sp = document.querySelector('.panel.news'), v = pad.ly || pad.ry; if (v) sp.scrollTop += v * dt * 700;

@@ -55,25 +55,25 @@ export function createCinema() {
       return true;
     }
     // conversation framing
-    const hero = ctx.heroPos, H = ctx.heroH, sp = talk.speaker;
+    const hero = ctx.heroPos, H = ctx.heroH, sp = talk.speaker, S = ctx.talkScale ?? 1;   // talkScale: smaller characters, closer camera
     if (sp === 'sethar') {                                           // the villain's voice: look past the hero at the pyramid
       const d = new THREE.Vector3(-hero.x, 0, -hero.z).normalize();
       tPos.copy(hero).addScaledVector(d, -42).addScaledVector(up, 24); tLook.set(0, 85, 0);
     } else if (talk.solo) {                                          // the hero alone: a 3/4 front shot
       const f = new THREE.Vector3(Math.sin(ctx.heroFacing), 0, Math.cos(ctx.heroFacing)), side = new THREE.Vector3(f.z, 0, -f.x);
-      tPos.copy(hero).addScaledVector(f, 34).addScaledVector(side, 14).addScaledVector(up, H * 0.75);
+      tPos.copy(hero).addScaledVector(f, 34 * S).addScaledVector(side, 14 * S).addScaledVector(up, H * 0.75);
       tLook.copy(hero).addScaledVector(up, H * 0.6);
     } else {
       const dir = new THREE.Vector3(talk.npc.x - hero.x, 0, talk.npc.z - hero.z).normalize(), side = new THREE.Vector3(dir.z, 0, -dir.x);
       if (sp === 'kharu') {                                          // reverse shot on the hero's face
-        tPos.copy(hero).addScaledVector(dir, 32).addScaledVector(side, 9).addScaledVector(up, H * 0.72);
+        tPos.copy(hero).addScaledVector(dir, 32 * S).addScaledVector(side, 9 * S).addScaledVector(up, H * 0.72);
         tLook.copy(hero).addScaledVector(up, H * 0.64);
       } else if (sp && sp !== 'memory') {                            // over the hero's shoulder at the speaker
-        tPos.copy(hero).addScaledVector(dir, -24).addScaledVector(side, 13).addScaledVector(up, H * 0.95);
+        tPos.copy(hero).addScaledVector(dir, -24 * S).addScaledVector(side, 13 * S).addScaledVector(up, H * 0.95);
         tLook.copy(talk.npc).addScaledVector(up, talk.h * 0.62);
       } else {                                                       // two-shot from the side
         const mid = new THREE.Vector3().lerpVectors(hero, talk.npc, 0.5);
-        tPos.copy(mid).addScaledVector(side, 55).addScaledVector(up, 15); tLook.copy(mid).addScaledVector(up, 8);
+        tPos.copy(mid).addScaledVector(side, 55 * S).addScaledVector(up, 15 * S); tLook.copy(mid).addScaledVector(up, 8 * S);
       }
     }
     if (fresh) { curLook.copy(tLook); fresh = false; }

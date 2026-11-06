@@ -6,7 +6,7 @@ root = pathlib.Path(__file__).resolve().parent.parent
 mods = sorted((root / 'src').glob('*.js'))
 h = {m.name: hashlib.sha1(m.read_bytes()).hexdigest()[:8] for m in mods}
 build = hashlib.sha1(''.join(h[k] for k in sorted(h)).encode()).hexdigest()[:7]
-for page, entry in (('index.html', 'main.js'), ('movies.html', 'movies.js')):
+for page, entry in (('index.html', 'main.js'), ('movies.html', 'movies.js'), ('legends.html', 'legends.js')):
     p = root / page
     s = p.read_text(encoding='utf-8')
     imports = {'three': './vendor/three/build/three.module.js', 'three/addons/': './vendor/three/addons/'}
@@ -17,6 +17,7 @@ for page, entry in (('index.html', 'main.js'), ('movies.html', 'movies.js')):
     s = re.sub(r'<script type="module" src="src/%s(\?v=[0-9a-f]+)?"></script>' % re.escape(entry),
                f'<script type="module" src="src/{entry}?v={h[entry]}"></script>', s)
     for css in ('style.css', 'movies.css'):
+        if not (root / css).exists(): continue
         ch = hashlib.sha1((root / css).read_bytes()).hexdigest()[:8]
         s = re.sub(r'href="%s(\?v=[0-9a-f]+)?"' % re.escape(css), f'href="{css}?v={ch}"', s)
     if '<meta name="build"' in s:
