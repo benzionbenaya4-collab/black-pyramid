@@ -66,7 +66,7 @@ const H = () => player.model.h;
 const keys = {};
 const ctl = createControls({ console: isConsole });
 const pad = createGamepad();
-const menuNav = createMenuNav(['#l-title', '#l-end']);
+const menuNav = createMenuNav(['#beta', '#l-title', '#l-end']);
 let actPressed = false, jumpPressed = false, back = false;
 addEventListener('keydown', (e) => {
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -125,7 +125,7 @@ function say(sp, text) {
   $('dlg-name').textContent = s.name; $('dialog').style.setProperty('--sp', s.color);
   $('dlg-text').textContent = text; $('dlg-text').classList.toggle('narr', sp === 'narrator');
   $('dialog').classList.remove('hidden');
-  if (talkNpc) cinema.speaker(sp === 'nefira' ? 'kharu' : sp === 'narrator' ? null : sp);
+  if (talkNpc) cinema.speaker(null);   // one steady shot of both of them for the whole conversation
   dialogOpen = true;
   return new Promise((res) => { dialogRes = () => { $('dialog').classList.add('hidden'); res(); }; });
 }
@@ -136,13 +136,103 @@ async function talk(obj, h, lines) {
   for (const [sp, text] of lines) await say(sp, text);
   cinema.endTalk(); talkNpc = null; player.frozen = false;
 }
-async function monologue(lines) { cinema.beginTalk(null); player.frozen = true; for (const [sp, text] of lines) { cinema.speaker('kharu'); await say(sp, text); } cinema.endTalk(); player.frozen = false; }
+async function monologue(lines) { cinema.beginTalk(null); player.frozen = true; for (const [sp, text] of lines) await say(sp, text); cinema.endTalk(); player.frozen = false; }
 function faceTo(p) { player.facing = Math.atan2(p.x - player.pos.x, p.z - player.pos.z); }
 
 // ================================================================ HUD helpers
 let toastT = 0;
 function toast(t, sec = 4) { $('toast').textContent = t; $('toast').classList.remove('hidden'); toastT = sec; }
-function objective(main, sub = '') { $('objectives').innerHTML = main ? `<div class="quest">➤ ${main}</div>${sub ? `<div class="hint">${sub}</div>` : ''}` : ''; }
+function objective(main, sub = '', target = null) {
+  $('objectives').innerHTML = main ? `<div class="quest">➤ ${main}</div>${sub ? `<div class="hint">${sub}</div>` : ''}` : '';
+  if (target !== undefined) guide.target = main ? target : null;
+}
+
+// ---------------------------------------------------------------- the arrow path: glowing arrows on the ground toward the goal
+// The path goes around houses (a small grid search over the colliders), and is refreshed as Nefira walks.
+const guide = { target: null, path: [], timer: 0, from: new THREE.Vector3(Infinity, 0, 0) };
+const ARROWS = 16, arrowGeo = (() => {
+  const sh = new THREE.Shape(); sh.moveTo(0, 1.6); sh.lineTo(1.5, -0.4); sh.lineTo(0.8, -0.4); sh.lineTo(0, 0.6); sh.lineTo(-0.8, -0.4); sh.lineTo(-1.5, -0.4); sh.closePath();
+  return new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2).scale(2.3, 1, 2.3);
+})();
+const arrows = Array.from({ length: ARROWS }, () => {
+  const m = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xffcf6a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+  m.renderOrder = 2; m.visible = false; scene.add(m); return m;
+});
+function blockedCam(q) {
+  for (const c of colliders) {
+    if (c.type === 'box') { if (q.x > c.minX - 1 && q.x < c.maxX + 1 && q.z > c.minZ - 1 && q.z < c.maxZ + 1 && q.y < G(q.x, q.z) + 26) return true; }
+    else if (c.r > 2.5 && Math.hypot(q.x - c.x, q.z - c.z) < c.r + 1 && q.y < G(q.x, q.z) + 14) return true;
+  }
+  return false;
+}
+function blocked(x, z) {
+  for (const c of colliders) {
+    if (c.type === 'box') { if (x > c.minX - 3 && x < c.maxX + 3 && z > c.minZ - 3 && z < c.maxZ + 3) return true; }
+    else if (Math.hypot(x - c.x, z - c.z) < c.r + 3) return true;
+  }
+  return false;
+}
+function findPath(a, b) {
+  const S = 6, minX = Math.min(a.x, b.x) - 90, minZ = Math.min(a.z, b.z) - 90;
+  const W = Math.ceil((Math.max(a.x, b.x) + 90 - minX) / S), D = Math.ceil((Math.max(a.z, b.z) + 90 - minZ) / S);
+  if (W * D > 40000) return [a.clone(), b.clone()];
+  const idx = (i, j) => j * W + i, cell = (p) => [Math.round((p.x - minX) / S), Math.round((p.z - minZ) / S)];
+  const [si, sj] = cell(a), [ti, tj] = cell(b);
+  const block = new Uint8Array(W * D);
+  for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) block[idx(i, j)] = blocked(minX + i * S, minZ + j * S) ? 1 : 0;
+  block[idx(si, sj)] = 0; block[idx(ti, tj)] = 0;
+  const g = new Float32Array(W * D).fill(Infinity), came = new Int32Array(W * D).fill(-1);
+  // binary heap of [f, cell]
+  const heap = [];
+  const push = (f, k) => { heap.push([f, k]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = i * 2 + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  g[idx(si, sj)] = 0; push(0, idx(si, sj));
+  const h = (k) => Math.hypot((k % W) - ti, Math.floor(k / W) - tj);
+  let found = false, guard = 0;
+  while (heap.length && guard++ < 80000) {
+    const [, cur] = pop();
+    if (cur === idx(ti, tj)) { found = true; break; }
+    const ci = cur % W, cj = Math.floor(cur / W);
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      if (!di && !dj) continue;
+      const ni = ci + di, nj = cj + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= D) continue;
+      const n = idx(ni, nj); if (block[n]) continue;
+      if (di && dj && (block[idx(ci + di, cj)] || block[idx(ci, cj + dj)])) continue;   // no corner cutting
+      const ng = g[cur] + (di && dj ? 1.414 : 1);
+      if (ng < g[n]) { g[n] = ng; came[n] = cur; push(ng + h(n), n); }
+    }
+  }
+  if (!found) return [a.clone(), b.clone()];
+  const pts = []; for (let k = idx(ti, tj); k !== -1; k = came[k]) pts.push(V3(minX + (k % W) * S, 0, minZ + Math.floor(k / W) * S));
+  pts.reverse(); pts[0] = a.clone(); pts[pts.length - 1] = b.clone();
+  return pts;
+}
+function updateGuide(dt, t, show) {
+  let target = typeof guide.target === 'function' ? guide.target() : guide.target;
+  const on = show && target;
+  if (on) {
+    guide.timer -= dt;
+    if (guide.timer <= 0 || player.pos.distanceTo(guide.from) > 6) { guide.path = findPath(player.pos, target); guide.from.copy(player.pos); guide.timer = 1.2; }
+  }
+  // walk along the path from just ahead of Nefira, one arrow every 8 units
+  let n = 0;
+  if (on && guide.path.length > 1 && Math.hypot(target.x - player.pos.x, target.z - player.pos.z) > 10) {
+    let carry = 5;
+    for (let k = 0; k < guide.path.length - 1 && n < ARROWS; k++) {
+      const a = guide.path[k], b = guide.path[k + 1], seg = Math.hypot(b.x - a.x, b.z - a.z); if (seg < 1e-3) continue;
+      const yaw = Math.atan2(b.x - a.x, b.z - a.z);
+      for (let d = carry; d < seg && n < ARROWS; d += 8) {
+        const x = a.x + (b.x - a.x) * d / seg, z = a.z + (b.z - a.z) * d / seg;
+        if (Math.hypot(target.x - x, target.z - z) < 7) { k = guide.path.length; break; }
+        const m = arrows[n++]; m.visible = true; m.position.set(x, Math.max(G(x, z), G(x + Math.sin(yaw) * 2, z + Math.cos(yaw) * 2), G(x - Math.sin(yaw) * 2, z - Math.cos(yaw) * 2)) + 0.6, z); m.rotation.set(0, yaw, 0);
+        m.material.opacity = (0.6 + 0.4 * Math.max(0, Math.sin(t * 4 - n * 0.6))) * Math.min(1, n / 2);
+        carry = d + 8 - seg;
+      }
+      if (carry < 0) carry = 0;
+    }
+  }
+  for (let k = n; k < ARROWS; k++) arrows[k].visible = false;
+}
 let cardTimer = null;
 function card(main, sub, sec = 4.5) {
   const el = $('teaser-title'); el.querySelector('.tt-main').textContent = main; el.querySelector('.tt-sub').textContent = sub;
@@ -215,7 +305,7 @@ async function chapter1() {
     ['sethar', 'תביאי לחם מהאופה בשוק לפני השקיעה. אני אחכה לך ליד הבאר.'],
   ]);
   setharBoy.group.visible = false;
-  objective('הביאי לחם מחנוט האופה, בשוק', 'השוק נמצא ממערב לשדרת הספינקסים');
+  objective('הביאי לחם מחנוט האופה, בשוק', 'עקבי אחרי החצים על הרצפה', baker.position);
   let gotBread = false;
   addInter({ pos: baker.position, r: 14, label: 'לדבר עם חנוט האופה', on: () => !gotBread, use: async () => {
     gotBread = true;
@@ -227,19 +317,20 @@ async function chapter1() {
   } });
   await until(() => gotBread && !dialogOpen);
   world.hourGoal = 18.9;
-  objective('לכי אל סת\'אר, ליד הבאר', 'הבאר נמצאת מזרחית לשדרה');
+  objective('לכי אל סת\'אר, ליד הבאר', 'עקבי אחרי החצים על הרצפה', CITY.well);
   await until(() => player.pos.distanceTo(CITY.well) < 26);
   world.hourGoal = 20.3;
   await monologue([['nefira', 'סת\'אר? …הוא לא כאן. והשמש כבר שקעה.'], ['narrator', 'מאיפשהו בחושך נשמעת נשימה שקטה. מישהו מסתתר. אולי אור יעזור למצוא אותו.']]);
   let lit = 0;
-  objective('הדליקי את הפנסים ברחוב (0/4)', 'החזיקי E / A ליד פנס כדי להדליק אותו');
+  const nextLamp = () => { const l = city.lamps.filter((q) => !q.lit).sort((p, q) => Math.hypot(p.x - player.pos.x, p.z - player.pos.z) - Math.hypot(q.x - player.pos.x, q.z - player.pos.z))[0]; return l ? V3(l.x, 0, l.z) : null; };
+  objective('הדליקי את הפנסים ברחוב (0/4)', 'החזיקי E / A ליד פנס כדי להדליק אותו', nextLamp);
   for (const l of city.lamps) addInter({ pos: V3(l.x, G(l.x, l.z), l.z), r: 9, label: 'להדליק את הפנס', hold: 1.2, on: () => !l.lit, use: () => {
-    l.set(true); lit++; objective(`הדליקי את הפנסים ברחוב (${lit}/4)`, lit < 4 ? 'החזיקי E / A ליד פנס כדי להדליק אותו' : '');
+    l.set(true); lit++; objective(`הדליקי את הפנסים ברחוב (${lit}/4)`, lit < 4 ? 'החזיקי E / A ליד פנס כדי להדליק אותו' : '', nextLamp);
   } });
   await until(() => lit >= 4);
   const hide = V3(CITY.well.x + 10, 0, CITY.well.z + 8); hide.y = G(hide.x, hide.z);
   setharBoy.group.visible = true; setharBoy.group.position.copy(hide); setharBoy.pose = { kneel: 0.55, headDown: 1 };
-  objective('מצאי את סת\'אר', 'הוא מאחורי הבאר');
+  objective('מצאי את סת\'אר', 'הוא מאחורי הבאר', hide);
   let found = false;
   addInter({ pos: hide, r: 12, label: 'לדבר עם סת\'אר', on: () => !found, use: async () => {
     found = true;
@@ -297,10 +388,11 @@ async function chapter2() {
   });
   E.paintScene();
   const okCount = () => mirrors.filter((s) => s.ok).length;
-  objective('כווני את מראות השמש (0/3)', 'לחצי E / A ליד מראה כדי לסובב אותה');
+  const nextMirror = () => { const m = mirrors.find((q) => !q.ok); return m ? m.p : null; };
+  objective('כווני את מראות השמש (0/3)', 'לחצי E / A ליד מראה כדי לסובב אותה', nextMirror);
   for (const s of mirrors) addInter({ pos: s.p, r: 10, label: 'לסובב את המראה', on: () => !s.ok, use: () => {
     s.dir = (s.dir + 1) % 4; s.set();
-    objective(`כווני את מראות השמש (${okCount()}/3)`, s.ok ? 'האור הגיע אל הדלת!' : 'לחצי E / A ליד מראה כדי לסובב אותה');
+    objective(`כווני את מראות השמש (${okCount()}/3)`, s.ok ? 'האור הגיע אל הדלת!' : 'לחצי E / A ליד מראה כדי לסובב אותה', nextMirror);
   } });
   await until(() => okCount() >= 3);
   clearInter(); objective('');
@@ -368,15 +460,16 @@ async function chapter3() {
     const st = { sp, done: false };
     addInter({ pos: sp.g.position, r: 9, label: `לאסוף ${s.name}`, hold: 1.5, on: () => !st.done, use: async () => {
       st.done = true; sp.g.visible = false; got++;
-      objective(`אספי חול מארבעה מקומות בעיר (${got}/4)`);
+      objective(`אספי חול מארבעה מקומות בעיר (${got}/4)`, '', nextSand);
       await monologue([['nefira', lines[i]]]);
     } });
     return st;
   });
-  objective('אספי חול מארבעה מקומות בעיר (0/4)', 'השוק, הבאר, הבית ומדרגות המקדש. החזיקי E / A');
+  const nextSand = () => { const s2 = spots.filter((q) => !q.done).sort((p, q) => p.sp.g.position.distanceTo(player.pos) - q.sp.g.position.distanceTo(player.pos))[0]; return s2 ? s2.sp.g.position : null; };
+  objective('אספי חול מארבעה מקומות בעיר (0/4)', 'השוק, הבאר, הבית ומדרגות המקדש. החזיקי E / A', nextSand);
   await until(() => got >= 4 && !dialogOpen);
   spots.forEach((s) => scene.remove(s.sp.g));
-  objective('לכי אל שדה החול שבקצה העיר', 'צפונה, בסוף השדרה');
+  objective('לכי אל שדה החול שבקצה העיר', 'עקבי אחרי החצים על הרצפה', FIELD);
   await until(() => player.pos.distanceTo(FIELD) < 40);
   objective('');
   // the guardian rises from the sand
@@ -664,6 +757,7 @@ function frame() {
   }
   if (king.g.visible && chapter === 4 && phase !== 'ended') updateFight(dt, t);
   city.update(t);
+  updateGuide(dt, t, canMove && !fight.on);
 
   // interactions
   curInter = null;
@@ -703,14 +797,28 @@ function frame() {
     const dist = m.h * 2.4 + 12, height = m.h * 1.05 + 3;
     const tp = V3(player.pos.x + Math.sin(cam.yaw) * dist, player.pos.y + height, player.pos.z + Math.cos(cam.yaw) * dist);
     if (phase === 'title') { const a = t * 0.05; tp.set(Math.sin(a) * 300, 60, 380 + Math.cos(a) * 120); camera.position.lerp(tp, 1); camera.lookAt(0, 60, 0); }
-    else { tp.y = Math.max(tp.y, G(tp.x, tp.z) + 2.5); camera.position.lerp(tp, Math.min(1, dt * 6)); camera.lookAt(player.pos.x, player.pos.y + m.h * 0.75, player.pos.z); }
+    else {
+      const head = V3(player.pos.x, player.pos.y + m.h * 0.8, player.pos.z);
+      for (let k = 1; k <= 20; k++) {   // walk from Nefira toward the camera; stop just before the first wall
+        const q = head.clone().lerp(tp, k / 20);
+        if (blockedCam(q)) { tp.copy(head.clone().lerp(tp, Math.max(0.12, (k - 1.5) / 20))); tp.y = Math.max(tp.y, head.y + 1); break; }
+      }
+      tp.y = Math.max(tp.y, G(tp.x, tp.z) + 2.5); camera.position.lerp(tp, Math.min(1, dt * 6)); camera.lookAt(player.pos.x, player.pos.y + m.h * 0.75, player.pos.z); }
   }
   E.world.update(dt, t, { center: phase === 'title' ? V3(0, 0, 300) : player.pos, wind: 5 + world.dark * 20 });
   E.updateSky(world.hour, phase === 'title' ? V3(0, 0, 300) : player.pos, world.dark);
   E.render();
 }
+// one-time beta notice (its own memory, separate from the first game)
+(() => {
+  let seen = false;
+  try { seen = localStorage.getItem('legends.betaSeen') === '1'; } catch { /* no storage: show it */ }
+  if (seen) return;
+  $('beta').classList.remove('hidden');
+  $('beta-ok').addEventListener('click', () => { $('beta').classList.add('hidden'); try { localStorage.setItem('legends.betaSeen', '1'); } catch { /* ignore */ } });
+})();
 useModel('child'); placePlayer(CITY.home.x, CITY.home.z + 2, Math.PI);
 world.hour = world.hourGoal = 17.4;
 showTitle();
 frame();
-window.__legends = { start, get phase() { return phase; }, get chapter() { return chapter; }, cinema, player, fight, get dialog() { return dialogOpen; }, advance, teleport: (x, z) => placePlayer(x, z, player.facing), get inter() { return curInter && curInter.label; } };
+window.__legends = { get arrowsVisible() { return arrows.filter((a) => a.visible).length; }, start, get phase() { return phase; }, get chapter() { return chapter; }, cinema, player, fight, get dialog() { return dialogOpen; }, advance, teleport: (x, z) => placePlayer(x, z, player.facing), get inter() { return curInter && curInter.label; } };

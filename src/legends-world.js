@@ -127,8 +127,36 @@ export function buildCity(scene, colliders) {
   const doorM = new THREE.MeshStandardMaterial({ color: 0x3a2412, roughness: 1 });
   const occupied = [];
   const free = (x, z, r) => occupied.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + r) && Math.abs(x) > 34 + r;
+  const beamM = new THREE.MeshStandardMaterial({ color: 0x6b4524, roughness: 1 });
+  /** a house on a slope sits level on its highest point; wooden support beams fill the gap down to the ground */
+  function supports(x, z, w, d, rot, baseY) {
+    const c = Math.cos(rot), s = Math.sin(rot);
+    const nx = Math.max(2, Math.ceil(w / 6)), nz = Math.max(2, Math.ceil(d / 6));
+    let any = false;
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) {
+      if (i > 0 && i < nx && j > 0 && j < nz) continue;                         // only around the edges
+      const lx = -w / 2 + 0.6 + (w - 1.2) * (i / nx), lz = -d / 2 + 0.6 + (d - 1.2) * (j / nz);
+      const wx = x + lx * c + lz * s, wz = z - lx * s + lz * c, g = groundAt(wx, wz), gap = baseY - g;
+      if (gap < 0.7) continue;
+      any = true;
+      b.add(box(0.9, gap + 1.2, 0.9), beamM, [wx, g - 0.6 + (gap + 1.2) / 2, wz], [0, rot, 0]);
+      if (gap > 3.5) b.add(box(0.5, Math.min(gap, 6) * 1.25, 0.5), beamM, [wx, g + Math.min(gap, 6) * 0.45, wz], [0, rot, (i === 0 ? 1 : -1) * 0.6]);   // a diagonal brace
+    }
+    if (any) {   // a wooden frame along the bottom of the house
+      b.at([x, baseY - 0.3, z], [0, rot, 0], 1, () => {
+        for (const e of [-1, 1]) { b.add(box(w, 0.7, 0.7), beamM, [0, 0, e * (d / 2 - 0.3)]); b.add(box(0.7, 0.7, d), beamM, [e * (w / 2 - 0.3), 0, 0]); }
+      });
+    }
+  }
+  function baseFor(x, z, w, d, rot) {
+    const c = Math.cos(rot), s = Math.sin(rot);
+    let hi = -Infinity;
+    for (const [lx, lz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2], [0, 0]]) hi = Math.max(hi, groundAt(x + lx * c + lz * s, z - lx * s + lz * c));
+    return hi - 0.4;
+  }
   function house(x, z, w, d, h, rot) {
-    const y = groundAt(x, z) - 1.5;
+    const y = baseFor(x, z, w, d, rot);
+    supports(x, z, w, d, rot, y);
     b.at([x, y, z], [0, rot, 0], 1, () => {
       b.add(box(w, h, d), R() < 0.3 ? white : mud, [0, h / 2, 0]);
       b.add(box(w + 0.8, 1.2, d + 0.8), mudDark, [0, h + 0.4, 0]);                                   // parapet
@@ -157,7 +185,8 @@ export function buildCity(scene, colliders) {
   occupied.push({ x: CITY.market.x, z: CITY.market.z, r: 42 }, { x: CITY.well.x, z: CITY.well.z, r: 20 }, { x: CITY.home.x, z: CITY.home.z, r: 18 });
   // the family home (bigger, white, with a garden wall)
   {
-    const { x, z } = CITY.home, y = groundAt(x, z) - 1.5;
+    const { x, z } = CITY.home, y = baseFor(x, z + 18, 30, 20, Math.PI);
+    supports(x, z + 18, 30, 20, Math.PI, y);
     b.at([x, y, z + 18], [0, Math.PI, 0], 1, () => {
       b.add(box(30, 16, 20), white, [0, 8, 0]); b.add(box(31, 1.4, 21), MAT.gold, [0, 16.4, 0]);
       b.add(box(4, 8, 0.6), doorM, [0, 4, 10.1]); for (const e of [-1, 1]) b.add(cyl(1.1, 1.3, 14, 10), MAT.lapis, [e * 6, 7, 11]);
