@@ -827,4 +827,8 @@ useModel('child'); placePlayer(CITY.home.x, CITY.home.z + 2, Math.PI);
 world.hour = world.hourGoal = 17.4;
 showTitle();
 frame();
-window.__legends = { get arrowsVisible() { return arrows.filter((a) => a.visible).length; }, start, get phase() { return phase; }, get chapter() { return chapter; }, cinema, player, fight, get dialog() { return dialogOpen; }, advance, teleport: (x, z) => placePlayer(x, z, player.facing), get inter() { return curInter && curInter.label; } };
+window.__legends = { spotCheck() {
+    const pts = { ...Object.fromEntries(city.lamps.map((l, i) => ['lamp' + i, [l.x, l.z]])), ...Object.fromEntries(CITY.sandSpots.map((q, i) => ['sand' + i, [q.x, q.z]])),
+      hide: [CITY.well.x + 10, CITY.well.z + 8], baker: [baker.position.x, baker.position.z], field: [FIELD.x, FIELD.z], homeFront: [CITY.home.x, CITY.home.z - 6] };
+    return Object.entries(pts).filter(([, [x, z]]) => colliders.some((c) => c.type === 'box' && x > c.minX - 1 && x < c.maxX + 1 && z > c.minZ - 1 && z < c.maxZ + 1)).map(([k]) => k);
+  }, get arrowsVisible() { return arrows.filter((a) => a.visible).length; }, start, get phase() { return phase; }, get chapter() { return chapter; }, cinema, player, fight, get dialog() { return dialogOpen; }, advance, teleport: (x, z) => placePlayer(x, z, player.facing), get inter() { return curInter && curInter.label; } };

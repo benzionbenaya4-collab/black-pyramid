@@ -118,6 +118,8 @@ export const CITY = {
   ],
 };
 
+const LAMP_SPOTS = [[-60, 300], [-104, 372], [36, 410], [96, 424]];
+
 export function buildCity(scene, colliders) {
   const R = rng(77);
   const b = new Batch();
@@ -183,6 +185,10 @@ export function buildCity(scene, colliders) {
   }
   // special places first
   occupied.push({ x: CITY.market.x, z: CITY.market.z, r: 42 }, { x: CITY.well.x, z: CITY.well.z, r: 20 }, { x: CITY.home.x, z: CITY.home.z, r: 18 });
+  // keep the story's places clear of houses: the street lamps, the sand spots, Sethar's hiding place behind the well
+  for (const [x, z] of LAMP_SPOTS) occupied.push({ x, z, r: 9 });
+  for (const sp of CITY.sandSpots) occupied.push({ x: sp.x, z: sp.z, r: 10 });
+  occupied.push({ x: CITY.well.x + 10, z: CITY.well.z + 8, r: 10 }, { x: CITY.home.x, z: CITY.home.z - 14, r: 16 });
   // the family home (bigger, white, with a garden wall)
   {
     const { x, z } = CITY.home, y = baseFor(x, z + 18, 30, 20, Math.PI);
@@ -237,7 +243,7 @@ export function buildCity(scene, colliders) {
     scene.add(g); colliders.push({ type: 'circle', x, z, r: 1.2 });
     return { g, flame, light, lit: false, x, z, set(on) { this.lit = on; flame.material.emissive.setHex(on ? 0xffa030 : 0); flame.material.emissiveIntensity = on ? 3 : 0; flame.material.color.setHex(on ? 0xffd27a : 0x3a2a1a); light.intensity = on ? 2.2 : 0; } };
   }
-  const lamps = [lamp(-60, 300), lamp(-104, 372), lamp(36, 410), lamp(96, 424)];
+  const lamps = LAMP_SPOTS.map(([x, z]) => lamp(x, z));
 
   // townspeople (they leave in chapter 3)
   const robes = [MAT.lapis, MAT.turquoise, MAT.redDark, MAT.cloth, MAT.leather];
