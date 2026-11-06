@@ -18,6 +18,7 @@ import { trapBackButton, isConsole, isMobile, createGamepad, createMenuNav, BTN 
 const $ = (id) => document.getElementById(id);
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const G = (x, z) => groundAt(x, z);
+const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);   // distance on the ground (ignores height)
 const SAVE = 'legends.progress';
 
 // ================================================================ engine, world, city
@@ -323,7 +324,7 @@ async function chapter1() {
   await until(() => gotBread && !dialogOpen);
   world.hourGoal = 18.9;
   objective('לכי אל סת\'אר, ליד הבאר', 'עקבי אחרי החצים על הרצפה', CITY.well);
-  await until(() => player.pos.distanceTo(CITY.well) < 26);
+  await until(() => flat(player.pos, CITY.well) < 26);
   world.hourGoal = 20.3;
   await monologue([['nefira', 'סת\'אר? …הוא לא כאן. והשמש כבר שקעה.'], ['narrator', 'מאיפשהו בחושך נשמעת נשימה שקטה. מישהו מסתתר. אולי אור יעזור למצוא אותו.']]);
   let lit = 0;
@@ -475,7 +476,7 @@ async function chapter3() {
   await until(() => got >= 4 && !dialogOpen);
   spots.forEach((s) => scene.remove(s.sp.g));
   objective('לכי אל שדה החול שבקצה העיר', 'עקבי אחרי החצים על הרצפה', FIELD);
-  await until(() => player.pos.distanceTo(FIELD) < 40);
+  await until(() => flat(player.pos, FIELD) < 40);
   objective('');
   // the guardian rises from the sand
   phase = 'cinema'; player.frozen = true;
