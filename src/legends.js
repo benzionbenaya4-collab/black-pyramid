@@ -34,6 +34,7 @@ golem.group.visible = false; golem.trickle.visible = false;
 scene.add(golem.group, golem.trickle);
 const FIELD = V3(ARENA.x, 0, ARENA.z - 80);          // the sand field at the edge of the city, where Haru is made
 const haru = { pos: FIELD.clone(), emerge: 0, alive: false };
+colliders.push({ type: 'circle', x: FIELD.x, z: FIELD.z, r: 4.5 });   // Haru stands there: walk (and keep the camera) around him
 const haruGlow = []; golem.group.traverse((o) => { if (o.material && o.material.emissive && o.material.emissiveIntensity > 0.5) haruGlow.push({ m: o.material, i: o.material.emissiveIntensity }); });
 const setHaruLife = (v) => haruGlow.forEach(({ m, i }) => { m.emissiveIntensity = i * v; });
 
@@ -569,8 +570,9 @@ async function chapter4() {
   useModel('adult');
   haru.pos.copy(FIELD).setY(G(FIELD.x, FIELD.z)); haru.emerge = 1; golem.group.visible = true; golem.trickle.visible = true; setHaruLife(0.05); golem.setPower(0);
   golem.group.rotation.y = 0;
-  placePlayer(FIELD.x, FIELD.z + 30, 0);
-  king.g.visible = true; king.g.scale.setScalar(1);
+  placePlayer(FIELD.x + 22, FIELD.z + 34, Math.atan2(KING.x - FIELD.x - 22, KING.z - FIELD.z - 34));
+  king.g.visible = true; king.g.scale.setScalar(1); king.g.position.copy(KING).setY(G(KING.x, KING.z) + 4);
+  fadeTo(0);
   card('אגדות נפירה', CHAPTERS[4], 4);
   await cinema.play([
     { from: () => KING.clone().add(V3(60, 30, -40)), to: () => KING.clone().add(V3(40, 24, -60)), look: () => king.g.position.clone().add(V3(0, 22, 0)), dur: 6, caption: 'מה שנשאר מסת\'אר ירד מהשמיים. כבר לא ילד שפוחד מהחושך. החושך עצמו.' },
