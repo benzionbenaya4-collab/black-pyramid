@@ -213,3 +213,6 @@ body:not(.mobile) #ctl-touch { display: none; }
 #ctl-pad button { min-width: 150px; padding: 4px 10px; font-size: 14px; }
 .ctl-h { margin: 12px 0 2px; font-size: 18px; color: #ffd86a; }
 body.console #ctl-table th:nth-child(2), body.console #ctl-table td:nth-child(2), body.console #ctl-touch { display: none; }
+#beta { background: rgba(8, 5, 2, .88); z-index: 45; }
+.panel.beta { max-width: 520px; text-align: center; }
+.panel.beta p { margin: 8px 0; }

@@ -629,7 +629,7 @@ function drawMinimap() {
 
 // ================================================================ controller (Xbox and others)
 const pad = createGamepad();
-const menuNav = createMenuNav(['#controls', '#editor', '#journal', '#choice', '#ending', '#title', '#dlg-choices']);
+const menuNav = createMenuNav(['#beta', '#controls', '#editor', '#journal', '#choice', '#ending', '#title', '#dlg-choices']);
 // ---------------------------------------------------------------- controls screen (change keys / buttons)
 let ctlWait = null, ctlCool = 0;
 function renderControls() {
@@ -673,6 +673,17 @@ function toggleControls(force) {
 }
 for (const btn of document.querySelectorAll('#ctl-pad [data-cycle]')) btn.addEventListener('click', () => { ctl.cycle(btn.dataset.cycle); renderControls(); });
 $('ctl-calib').addEventListener('click', () => { pad.calibrate(); $('ctl-calib').textContent = 'מכייל… אל תגעו במקלות'; setTimeout(() => { $('ctl-calib').textContent = '✓ כויל'; }, 900); });
+// one-time beta notice, only the very first time the game is opened
+(() => {
+  let seen = false;
+  try { seen = localStorage.getItem('blackPyramid.betaSeen') === '1'; } catch { /* no storage: show it */ }
+  if (seen) return;
+  $('beta').classList.remove('hidden');
+  $('beta-ok').addEventListener('click', () => {
+    $('beta').classList.add('hidden');
+    try { localStorage.setItem('blackPyramid.betaSeen', '1'); } catch { /* ignore */ }
+  });
+})();
 $('btn-controls').addEventListener('click', () => toggleControls(true));
 $('btn-controls-title').addEventListener('click', () => toggleControls(true));
 $('ctl-close').addEventListener('click', () => toggleControls(false));
@@ -689,6 +700,7 @@ function handlePad(dt) {
   if (!pad.connected) return;
   if (ctlWait) { if (ctlWait.kind === 'pad' && pad.pressed.size) { const b = [...pad.pressed][0]; ctl.setPad(ctlWait.id, b); ctlWait = null; ctlCool = 0.4; renderControls(); } return; }
   const back = pad.hit(BTN.B) || pad.hit(BTN.Y) || padBack; padBack = false;
+  if (!$('beta').classList.contains('hidden')) { menuNav(pad, dt); return; }
   if (!$('controls').classList.contains('hidden')) { if (ctlCool > 0) { ctlCool -= dt; return; } if (back) { toggleControls(false); return; } menuNav(pad, dt); return; }
   const aHeld = pad.isDown(ctl.pad('action')) && phase === 'playing' && !story.busy;   // hold A = hold E (rescue, mirrors)
   if (aHeld) { keys.KeyE = true; padE = true; } else if (padE) { keys.KeyE = false; padE = false; }

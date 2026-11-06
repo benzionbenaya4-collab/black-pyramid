@@ -1,4 +1,4 @@
-<meta name="build" content="af15c4f">
+<meta name="build" content="b88df62">
   <title>משמר הפירמידה השחורה</title>
   <style>
 :root { color-scheme: dark; background: #000; }
@@ -217,6 +217,9 @@ body:not(.mobile) #ctl-touch { display: none; }
 #ctl-pad button { min-width: 150px; padding: 4px 10px; font-size: 14px; }
 .ctl-h { margin: 12px 0 2px; font-size: 18px; color: #ffd86a; }
 body.console #ctl-table th:nth-child(2), body.console #ctl-table td:nth-child(2), body.console #ctl-touch { display: none; }
+#beta { background: rgba(8, 5, 2, .88); z-index: 45; }
+.panel.beta { max-width: 520px; text-align: center; }
+.panel.beta p { margin: 8px 0; }
 
 </style>
   <script>
@@ -376,6 +379,16 @@ body.console #ctl-table th:nth-child(2), body.console #ctl-table td:nth-child(2)
   </div>
 
   <!-- Journal -->
+  <div id="beta" class="screen hidden">
+    <div class="panel beta">
+      <h2>🧪 גרסת בטא</h2>
+      <p>המשחק נמצא כרגע <b>בגרסת בטא</b>, כלומר הוא עדיין בבדיקות.</p>
+      <p>ייתכן שחלק מהדברים לא יעבדו כמו שצריך, או שיופיעו באגים שעוד לא גילינו. אי אפשר להבטיח משחק בלי אף באג.</p>
+      <p class="note">אם משהו נראה מוזר או נתקע, צלמו את המסך ושלחו, כדי שאפשר יהיה לתקן.</p>
+      <p class="note">ההודעה הזאת מופיעה רק בפעם הראשונה.</p>
+      <div class="buttons"><button id="beta-ok" type="button">הבנתי, בואו נשחק</button></div>
+    </div>
+  </div>
   <div id="controls" class="screen hidden">
     <div class="panel controls">
       <h2>🎮 שליטה ומקשים</h2>
