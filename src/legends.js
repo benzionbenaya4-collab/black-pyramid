@@ -172,14 +172,19 @@ function blocked(x, z) {
   }
   return false;
 }
+// the obstacle map is computed once (houses, walls and statues don't move)
+const NAV = { S: 6, minX: -420, minZ: 60, W: 0, D: 0, grid: null };
+function buildNav() {
+  NAV.W = Math.ceil(840 / NAV.S); NAV.D = Math.ceil(760 / NAV.S); NAV.grid = new Uint8Array(NAV.W * NAV.D);
+  for (let j = 0; j < NAV.D; j++) for (let i = 0; i < NAV.W; i++) NAV.grid[j * NAV.W + i] = blocked(NAV.minX + i * NAV.S, NAV.minZ + j * NAV.S) ? 1 : 0;
+}
 function findPath(a, b) {
-  const S = 6, minX = Math.min(a.x, b.x) - 90, minZ = Math.min(a.z, b.z) - 90;
-  const W = Math.ceil((Math.max(a.x, b.x) + 90 - minX) / S), D = Math.ceil((Math.max(a.z, b.z) + 90 - minZ) / S);
-  if (W * D > 40000) return [a.clone(), b.clone()];
-  const idx = (i, j) => j * W + i, cell = (p) => [Math.round((p.x - minX) / S), Math.round((p.z - minZ) / S)];
+  if (!NAV.grid) buildNav();
+  const { S, W, D, grid } = NAV, minX = NAV.minX, minZ = NAV.minZ;
+  const idx = (i, j) => j * W + i;
+  const cell = (p) => [THREE.MathUtils.clamp(Math.round((p.x - minX) / S), 0, W - 1), THREE.MathUtils.clamp(Math.round((p.z - minZ) / S), 0, D - 1)];
   const [si, sj] = cell(a), [ti, tj] = cell(b);
-  const block = new Uint8Array(W * D);
-  for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) block[idx(i, j)] = blocked(minX + i * S, minZ + j * S) ? 1 : 0;
+  const block = grid.slice();
   block[idx(si, sj)] = 0; block[idx(ti, tj)] = 0;
   const g = new Float32Array(W * D).fill(Infinity), came = new Int32Array(W * D).fill(-1);
   // binary heap of [f, cell]
@@ -211,8 +216,8 @@ function updateGuide(dt, t, show) {
   let target = typeof guide.target === 'function' ? guide.target() : guide.target;
   const on = show && target;
   if (on) {
-    guide.timer -= dt;
-    if (guide.timer <= 0 || player.pos.distanceTo(guide.from) > 6) { guide.path = findPath(player.pos, target); guide.from.copy(player.pos); guide.timer = 1.2; }
+    // re-plan only when Nefira has walked a bit, or the goal changed
+    if (player.pos.distanceTo(guide.from) > 8 || !guide.to || guide.to.distanceTo(target) > 1) { guide.path = findPath(player.pos, target); guide.from.copy(player.pos); guide.to = target.clone(); }
   }
   // walk along the path from just ahead of Nefira, one arrow every 8 units
   let n = 0;
