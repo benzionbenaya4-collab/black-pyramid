@@ -11,7 +11,8 @@ import { createGolem } from './golem.js';
 import { createEditor, loadDesign } from './editor.js';
 import { createCinema } from './cinema.js';
 import { createCombat, ARENA } from './combat.js';
-import { createStory, defaultFlags, GATE_HOUR } from './story.js';
+import { createStory, defaultFlags, GATE_HOUR, buildNefira, NPC_POS } from './story.js';
+import { createNews } from './news.js';
 import { ENDINGS, determineEnding, endingStory } from './endings.js';
 import { createControls, ACTIONS, keyName, padName, MOVE_OPTS, LOOK_OPTS, SPEED_OPTS, DEADZONE_OPTS } from './controls.js';
 import { trapBackButton, BUILD, watchContext, createRenderGuard, quality, createAutoRes, isConsole, isMobile, setupMobile, checkWebGL, createGamepad, createMenuNav, BTN } from './platform.js';
@@ -239,6 +240,7 @@ addEventListener('keydown', (e) => {
   if (editor.isOpen) return;   // typing in the designer must not move the hero
   if (ctlWait) { e.preventDefault(); if (e.code !== 'Escape' && ctlWait.kind === 'key') ctl.setKey(ctlWait.id, e.code); ctlWait = null; renderControls(); return; }
   if (!$('controls').classList.contains('hidden')) { if (e.code === 'Escape') toggleControls(false); return; }
+  if (!$('news').classList.contains('hidden')) { if (['Escape', 'Enter'].includes(e.code)) news.close(); return; }
   const ev0 = e; e = { code: ctl.key(ev0.code), repeat: ev0.repeat, preventDefault: () => ev0.preventDefault() };
   if (cinema.playing && ['Space', 'KeyE', 'Enter', 'Escape'].includes(e.code) && !e.repeat) { e.preventDefault(); cinema.finish(); return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -430,6 +432,32 @@ function endingShots(id, paragraphs) {
   }[id];
   return paragraphs.map((p, i) => ({ ...S[seq[Math.min(i, seq.length - 1)]](p), dur: 3 + p.length * 0.055 }));
 }
+// ---------------------------------------------------------------- after every ending: "Legends of Nefira – coming soon"
+// Nefira whispers about the past, faints, and her body rises into the sky until it disappears.
+function teaserShots() {
+  const base = NPC_POS.nefira.clone(); base.y = groundAt(base.x, base.z);
+  const N = (x, y, z) => base.clone().add(V3(x, y, z));
+  const orig = story.nefira;
+  const nf = buildNefira(); const mats = [];
+  nf.traverse((o) => { if (o.material) { o.material = o.material.clone(); o.material.transparent = true; mats.push({ m: o.material, o: o.material.opacity ?? 1 }); } });
+  const glow = new THREE.PointLight(0x8fd3ff, 0, 60, 1.6);
+  const fade = (a) => mats.forEach(({ m, o }) => { m.opacity = o * a; });
+  const place = (y, tilt, spin) => { nf.position.copy(base).setY(base.y + y); nf.rotation.set(tilt, spin, 0); glow.position.copy(nf.position).add(V3(0, 8, 0)); };
+  const title = $('teaser-title');
+  return [
+    { from: N(4, 11, 30), to: N(2, 11, 22), look: N(0, 10.5, 0), dur: 5, caption: 'נפירה: "וואי… איזה זיכרונות מהעבר."',
+      start: () => { if (orig) orig.visible = false; scene.add(nf, glow); glow.intensity = 1.5; fade(1); place(1.5, 0, 0); },
+      update: (k) => place(1.5 + Math.sin(k * 6) * 0.3, 0, Math.sin(k * 3) * 0.1) },
+    { from: N(16, 8, 22), to: N(19, 6, 24), look: N(0, 5, 0), dur: 3.2, caption: '',
+      update: (k) => { const e = k * k; place(1.5 - e * 1.1, -e * 1.35, 0); } },
+    { from: N(0, 7, 42), to: N(0, 26, 66), look: () => nf.position.clone().add(V3(0, 4, 0)), dur: 8, caption: '',
+      update: (k) => { const e = k * k; place(0.4 + e * 150, -1.35 + k * 0.5, k * 2.2); glow.intensity = 1.5 + k * 4; fade(1 - THREE.MathUtils.smoothstep(k, 0.55, 0.98)); } },
+    { from: N(0, 26, 66), to: N(0, 30, 70), look: N(0, 150, 0), lookTo: N(0, 175, 0), dur: 6, caption: '',
+      start: () => { nf.visible = false; glow.intensity = 0; title.classList.remove('hidden', 'low'); void title.offsetWidth; title.classList.add('on'); },
+      end: () => { title.classList.remove('on'); setTimeout(() => title.classList.add('hidden'), 1700); scene.remove(nf, glow); if (orig) orig.visible = true; } },
+  ];
+}
+
 function endGame(reason) {
   if (phase === 'ended' || state.ended) return;
   combat.stop(); combat.show(false); document.body.classList.remove('fight');
@@ -453,7 +481,9 @@ function endGame(reason) {
   }).join('');
   if (['seal', 'claim', 'enter'].includes(reason)) { player.pos.set(0, groundAt(0, PYR.HALF + 42), PYR.HALF + 42); player.facing = Math.PI; player.speed = 0; }
   const paragraphs = endingStory(ending.id, { f: state.f, caravan: state.caravan });
-  cinema.play(endingShots(ending.id, paragraphs)).then(() => { phase = 'ended'; $('ending').classList.remove('hidden'); });
+  cinema.play(endingShots(ending.id, paragraphs))
+    .then(() => cinema.play(teaserShots()))
+    .then(() => { phase = 'ended'; $('ending').classList.remove('hidden'); });
 }
 
 // ================================================================ day / night
@@ -629,7 +659,7 @@ function drawMinimap() {
 
 // ================================================================ controller (Xbox and others)
 const pad = createGamepad();
-const menuNav = createMenuNav(['#beta', '#controls', '#editor', '#journal', '#choice', '#ending', '#title', '#dlg-choices']);
+const menuNav = createMenuNav(['#beta', '#news', '#controls', '#editor', '#journal', '#choice', '#ending', '#title', '#dlg-choices']);
 // ---------------------------------------------------------------- controls screen (change keys / buttons)
 let ctlWait = null, ctlCool = 0;
 function renderControls() {
@@ -684,6 +714,7 @@ $('ctl-calib').addEventListener('click', () => { pad.calibrate(); $('ctl-calib')
     try { localStorage.setItem('blackPyramid.betaSeen', '1'); } catch { /* ignore */ }
   });
 })();
+const news = createNews({ $ });
 $('btn-controls').addEventListener('click', () => toggleControls(true));
 $('btn-controls-title').addEventListener('click', () => toggleControls(true));
 $('ctl-close').addEventListener('click', () => toggleControls(false));
@@ -701,6 +732,12 @@ function handlePad(dt) {
   if (ctlWait) { if (ctlWait.kind === 'pad' && pad.pressed.size) { const b = [...pad.pressed][0]; ctl.setPad(ctlWait.id, b); ctlWait = null; ctlCool = 0.4; renderControls(); } return; }
   const back = pad.hit(BTN.B) || pad.hit(BTN.Y) || padBack; padBack = false;
   if (!$('beta').classList.contains('hidden')) { menuNav(pad, dt); return; }
+  if (news.isOpen) {   // sticks scroll the article; A / B / Y close it
+    if (back || pad.hit(BTN.A)) { news.close(); return; }
+    const sp = document.querySelector('.panel.news'), v = pad.ly || pad.ry; if (v) sp.scrollTop += v * dt * 700;
+    if (pad.isDown(BTN.DOWN)) sp.scrollTop += dt * 500; if (pad.isDown(BTN.UP)) sp.scrollTop -= dt * 500;
+    return;
+  }
   if (!$('controls').classList.contains('hidden')) { if (ctlCool > 0) { ctlCool -= dt; return; } if (back) { toggleControls(false); return; } menuNav(pad, dt); return; }
   const aHeld = pad.isDown(ctl.pad('action')) && phase === 'playing' && !story.busy;   // hold A = hold E (rescue, mirrors)
   if (aHeld) { keys.KeyE = true; padE = true; } else if (padE) { keys.KeyE = false; padE = false; }
@@ -746,7 +783,7 @@ function frame() {
   holdDtNow = Math.min(rawDt, 0.5);   // real time for hold-to-act and messages, even on slow machines
   t += dt;
   handlePad(dt);
-  document.body.classList.toggle('touch-live', hasTouch && !pad.connected && ((phase === 'playing' && !story.busy) || phase === 'fight') && $('journal').classList.contains('hidden') && $('editor').classList.contains('hidden') && $('controls').classList.contains('hidden'));
+  document.body.classList.toggle('touch-live', hasTouch && !pad.connected && ((phase === 'playing' && !story.busy) || phase === 'fight') && $('journal').classList.contains('hidden') && $('editor').classList.contains('hidden') && $('controls').classList.contains('hidden') && $('news').classList.contains('hidden'));
 
   if (phase === 'playing' || phase === 'fight') updatePlaying(dt);
   if (phase === 'fight') {
@@ -810,6 +847,17 @@ showTitle();
 frame();
 // debugging helpers for the browser console
 window.__game = {
+  teaserStill(k = 0.5, withTitle = true) {   // frozen frame of the teaser (used to make the News picture)
+    const s = teaserShots(); s[0].start(); s[2].update(k, 0);
+    const base = NPC_POS.nefira.clone(); base.y = groundAt(base.x, base.z);
+    const nf = scene.children[scene.children.length - 2];
+    phase = 'cinema'; $('hud').classList.add('hidden');
+    if (withTitle) { $('teaser-title').classList.remove('hidden'); $('teaser-title').classList.add('on', 'low'); }
+    const pr = cinema.play([{ from: base.clone().add(V3(7, 2, -24)), look: nf.position.clone().add(V3(0, 1, 0)), dur: 9999 }]);
+    $('cine-skip').classList.add('hidden');
+    return pr;
+  },
+  teaser() { phase = 'cinema'; $('hud').classList.add('hidden'); return cinema.play(teaserShots()); },
   get state() { return state; }, get phase() { return phase; }, get py() { return +player.pos.y.toFixed(1); }, get spd() { return +player.speed.toFixed(1); }, get gfx() { let tri = 0, vb = 0; scene.traverse((o) => { const g = o.geometry; if (!g || !o.visible) return; const n = g.index ? g.index.count : g.attributes.position.count; tri += n / 3 * (o.count || 1); for (const a of Object.values(g.attributes)) vb += a.array.byteLength; if (g.index) vb += g.index.array.byteLength; }); return { sceneTris: Math.round(tri), geoMB: Math.round(vb / 1e6), shadow: sun.shadow.mapSize.x, ...renderer.info.memory, tris: renderer.info.render.triangles, calls: renderer.info.render.calls, ratio: renderer.getPixelRatio() }; }, get pos() { return [Math.round(player.pos.x), Math.round(player.pos.z)]; }, endGame, startGame, story, startFight, combat, cinema,
   teleport(x, z) { player.pos.set(x, groundAt(x, z), z); },
   view(orbit) { cam.orbit = orbit; cam.yaw = player.facing + Math.PI + orbit; dragging = true; },

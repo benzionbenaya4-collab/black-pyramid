@@ -685,6 +685,6 @@ export function createStory(ctx) {
     return out;
   }
 
-  return { dialog, update, interact, quest, sideQuests, sync, unlocked, gateOpen, journalHTML, mapMarks, get busy() { return dialog.busy; },
+  return { dialog, update, interact, quest, sideQuests, sync, unlocked, gateOpen, journalHTML, mapMarks, nefira, get busy() { return dialog.busy; },
     _dbg: { puzzles, mirrors, tablets, scarabs, NPC_POS } };
 }

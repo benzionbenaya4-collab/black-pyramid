@@ -2,10 +2,10 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="build" content="b88df62">
+  <meta name="build" content="f762480">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>משמר הפירמידה השחורה</title>
-  <link rel="stylesheet" href="style.css?v=12f50802">
+  <link rel="stylesheet" href="style.css?v=d346d625">
   <script>
   // on-screen errors instead of a blank page (also catches files that fail to load)
   (function () {
@@ -36,12 +36,13 @@
     "./src/endings.js": "./src/endings.js?v=73b9eb55",
     "./src/glyphs.js": "./src/glyphs.js?v=389e72b1",
     "./src/golem.js": "./src/golem.js?v=77059493",
-    "./src/main.js": "./src/main.js?v=9eeb551f",
+    "./src/main.js": "./src/main.js?v=a17ad7c1",
     "./src/movies.js": "./src/movies.js?v=93127a3a",
+    "./src/news.js": "./src/news.js?v=34f0ab98",
     "./src/platform.js": "./src/platform.js?v=e7e436d4",
     "./src/screenplay-extra.js": "./src/screenplay-extra.js?v=08e639e7",
     "./src/screenplay.js": "./src/screenplay.js?v=9238365b",
-    "./src/story.js": "./src/story.js?v=4140f313",
+    "./src/story.js": "./src/story.js?v=12d245e7",
     "./src/util.js": "./src/util.js?v=85ddd378",
     "./src/world.js": "./src/world.js?v=6e39d9f5"
   }
@@ -55,6 +56,7 @@
   <!-- cinematic layer -->
   <div id="letterbox"><div class="bar top"></div><div class="bar bottom"></div></div>
   <div id="cine-caption" class="hidden"></div>
+  <div id="teaser-title" class="hidden"><div class="tt-main">אגדות נפירה</div><div class="tt-sub">בקרוב</div></div>
   <button id="cine-skip" class="hidden ghost" type="button">דלג ⏭</button>
   <div id="hurt"></div>
   <div id="boss-shout" class="hidden"></div>
@@ -89,6 +91,7 @@
     <button id="btn-journal" type="button">📜 יומן (J)</button>
     <button id="btn-design" type="button">🎨 עיצוב הדמות</button>
     <button id="btn-controls" type="button">🎮 שליטה</button>
+    <button id="btn-news" class="btn-news" type="button">📰 חדשות</button>
     <div id="dialog" class="hidden">
       <div id="dlg-name"></div>
       <div id="dlg-text"></div>
@@ -120,6 +123,7 @@
         <button id="btn-new">משחק חדש</button>
         <button id="btn-design-title" class="ghost" type="button">🎨 עיצוב הדמות</button>
         <button id="btn-controls-title" class="ghost" type="button">🎮 שליטה ומקשים</button>
+        <button id="btn-news-title" class="ghost btn-news" type="button">📰 חדשות</button>
         <a class="film-link" href="movies.html">🎬 לסרט של המשחק</a>
       </div>
       <p id="endings-found" class="note"></p>
@@ -163,6 +167,13 @@
   </div>
 
   <!-- Journal -->
+  <div id="news" class="screen hidden">
+    <div class="panel news">
+      <h1 class="news-head">📰 חדשות</h1>
+      <div id="news-body"></div>
+      <div class="buttons"><button id="news-close" type="button">סגור</button></div>
+    </div>
+  </div>
   <div id="beta" class="screen hidden">
     <div class="panel beta">
       <h2>🧪 גרסת בטא</h2>
@@ -216,6 +227,6 @@
     </div>
   </div>
 
-  <script type="module" src="src/main.js?v=9eeb551f"></script>
+  <script type="module" src="src/main.js?v=a17ad7c1"></script>
 </body>
 </html>

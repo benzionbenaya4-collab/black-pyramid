@@ -216,3 +216,28 @@ body.console #ctl-table th:nth-child(2), body.console #ctl-table td:nth-child(2)
 #beta { background: rgba(8, 5, 2, .88); z-index: 45; }
 .panel.beta { max-width: 520px; text-align: center; }
 .panel.beta p { margin: 8px 0; }
+
+/* news */
+#btn-news { position: absolute; top: 350px; left: 14px; pointer-events: auto; font-size: 14px; padding: 6px 12px; }
+body.mobile #btn-news { top: calc(136px + env(safe-area-inset-top, 0px)); left: calc(300px + env(safe-area-inset-left, 0px)); font-size: 12px; padding: 5px 9px; }
+.btn-news { position: relative; }
+.btn-news.unread::after { content: ''; position: absolute; top: -4px; left: -4px; width: 12px; height: 12px; border-radius: 50%; background: #ff4a3a; box-shadow: 0 0 8px #ff4a3a; }
+#news { background: rgba(8, 5, 2, .9); z-index: 41; }
+.panel.news { max-width: 760px; max-height: 92vh; overflow: auto; text-align: right; }
+.news-head { margin: 0 0 6px; }
+.news-item h2 { font-size: 30px; margin: 4px 0 2px; color: #ffd86a; letter-spacing: .5px; }
+.news-item h3 { margin: 16px 0 6px; color: #ffd86a; font-size: 18px; }
+.news-meta { font-size: 13px; opacity: .8; }
+.news-tag { display: inline-block; background: #8a2cff; color: #fff; border-radius: 6px; padding: 1px 8px; margin-left: 6px; font-weight: bold; }
+.news-sub { font-style: italic; opacity: .85; margin-top: 0; }
+.news-img { width: 100%; border-radius: 10px; border: 1px solid #8a6a3a; margin: 8px 0; display: block; }
+.news-hints { padding-right: 20px; margin: 0; } .news-hints li { margin: 6px 0; }
+.news-small { font-size: 13px; opacity: .7; }
+/* "Legends of Nefira – coming soon" title card at the end of the game */
+#teaser-title { position: fixed; inset: 0; z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none;
+  text-align: center; opacity: 0; transition: opacity 1.6s ease; }
+#teaser-title.on { opacity: 1; }
+#teaser-title .tt-main { font-size: clamp(40px, 8vw, 96px); font-weight: bold; color: #bfe6ff; letter-spacing: 2px;
+  text-shadow: 0 0 18px #6fc8ff, 0 0 46px rgba(120, 200, 255, .6), 0 3px 0 #0b2740; }
+#teaser-title .tt-sub { margin-top: 6px; font-size: clamp(18px, 2.6vw, 30px); color: #ffd86a; letter-spacing: 8px; text-shadow: 0 0 12px rgba(255, 200, 80, .7); }
+#teaser-title.low { justify-content: flex-end; padding-bottom: 15vh; }
